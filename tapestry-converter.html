@@ -99,6 +99,21 @@
   .upload-zone img { max-width: 100%; border-radius: 8px; }
   .upload-zone p { color: #666; font-size: 0.85rem; margin-top: 8px; }
 
+  .crop-btn {
+    width: 100%;
+    margin-top: 8px;
+    padding: 8px;
+    background: #2a2a3a;
+    color: #ffd200;
+    border: 1px dashed #ffd200;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .crop-btn:hover { background: #3a3a4a; }
+
   .crop-container {
     position: relative;
     display: none;
@@ -891,6 +906,7 @@
         <p>Click or drag an image here</p>
       </div>
       <input type="file" id="fileInput" accept="image/*" hidden>
+      <button class="crop-btn" id="cropBtn" style="display:none;">Crop Image</button>
       <div class="crop-container" id="cropContainer">
         <img id="cropImg" src="">
         <div class="crop-overlay" id="cropOverlay">
@@ -1152,13 +1168,14 @@ function handleFile(file) {
     img.onload = () => {
       state.fullImage = img;
       state.originalImage = img;
+      state.imgDataURL = e.target.result;
       state.cropRegion = null;
       state.aspectRatio = img.width / img.height;
       uploadZone.innerHTML = `<img src="${e.target.result}" alt="uploaded">`;
       uploadZone.classList.add('has-image');
       $('generateBtn').disabled = false;
+      $('cropBtn').style.display = 'block';
       if ($('lockRatio').checked) syncHeight();
-      showCropper(e.target.result, img);
     };
     img.src = e.target.result;
   };
@@ -1166,7 +1183,12 @@ function handleFile(file) {
 }
 
 // ===================== CROP TOOL =====================
-function showCropper(src, img) {
+$('cropBtn').addEventListener('click', () => {
+  if (!state.fullImage) return;
+  showCropper(state.imgDataURL, state.fullImage);
+});
+
+function showCropper(src) {
   const container = $('cropContainer');
   const cropImg = $('cropImg');
   const actions = $('cropActions');
