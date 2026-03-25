@@ -1893,6 +1893,87 @@ function thresholdPalette(imageData, numColors) {
   return result;
 }
 
+// ===================== ACCENT COLOR DETECTION =====================
+function injectAccentColors(imageData, pixels, palette) {
+  const d = imageData.data;
+  const totalPx = pixels.length;
+
+  // Find highly saturated pixels (accent colors like blue, pink, red, green)
+  const accentBuckets = {};
+  for (let i = 0; i < totalPx; i++) {
+    const r = d[i*4], g = d[i*4+1], b = d[i*4+2];
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+    const lum = (mx + mn) / 2;
+    const range = mx - mn;
+    // Saturation check: color must be vivid, not grey/brown
+    const sat = mx === 0 ? 0 : range / mx;
+    if (sat < 0.35 || range < 50) continue;
+    // Skip very dark or very bright
+    if (lum < 30 || lum > 240) continue;
+
+    // Bucket by dominant hue (quantize to 12 hue bins)
+    let hue;
+    if (range === 0) continue;
+    if (mx === r) hue = ((g - b) / range) % 6;
+    else if (mx === g) hue = (b - r) / range + 2;
+    else hue = (r - g) / range + 4;
+    hue = Math.round(((hue * 60) + 360) % 360);
+    const hueBin = Math.floor(hue / 30);
+
+    if (!accentBuckets[hueBin]) accentBuckets[hueBin] = { r: 0, g: 0, b: 0, count: 0 };
+    accentBuckets[hueBin].r += r;
+    accentBuckets[hueBin].g += g;
+    accentBuckets[hueBin].b += b;
+    accentBuckets[hueBin].count++;
+  }
+
+  // Find accent colors that cover at least 0.5% of image but aren't in palette
+  const minPixels = Math.max(5, totalPx * 0.005);
+  const accents = Object.values(accentBuckets)
+    .filter(b => b.count >= minPixels)
+    .map(b => [Math.round(b.r/b.count), Math.round(b.g/b.count), Math.round(b.b/b.count)])
+    .sort((a, b) => {
+      const satA = (Math.max(...a) - Math.min(...a)) / (Math.max(...a) || 1);
+      const satB = (Math.max(...b) - Math.min(...b)) / (Math.max(...b) || 1);
+      return satB - satA;
+    });
+
+  if (accents.length === 0) return palette;
+
+  const newPalette = [...palette];
+  for (const accent of accents) {
+    // Check if this accent is already close to a palette color
+    let alreadyPresent = false;
+    for (const pc of newPalette) {
+      const dr = accent[0]-pc[0], dg = accent[1]-pc[1], db = accent[2]-pc[2];
+      if (2*dr*dr + 4*dg*dg + 3*db*db < 3000) { alreadyPresent = true; break; }
+    }
+    if (alreadyPresent) continue;
+
+    // Find the palette color with the least visual impact to replace
+    // (the one closest to another palette color = most redundant)
+    let mostRedundantIdx = -1, smallestMinDist = Infinity;
+    for (let i = 0; i < newPalette.length; i++) {
+      let minD = Infinity;
+      for (let j = 0; j < newPalette.length; j++) {
+        if (i === j) continue;
+        const dr = newPalette[i][0]-newPalette[j][0];
+        const dg = newPalette[i][1]-newPalette[j][1];
+        const db = newPalette[i][2]-newPalette[j][2];
+        const dist = 2*dr*dr + 4*dg*dg + 3*db*db;
+        if (dist < minD) minD = dist;
+      }
+      if (minD < smallestMinDist) { smallestMinDist = minD; mostRedundantIdx = i; }
+    }
+
+    if (mostRedundantIdx >= 0 && smallestMinDist < 8000) {
+      newPalette[mostRedundantIdx] = accent;
+    }
+  }
+
+  return newPalette;
+}
+
 // ===================== GENERATE =====================
 $('generateBtn').addEventListener('click', generate);
 
@@ -1912,6 +1993,10 @@ function generate() {
       state.palette = thresholdPalette(imageData, numColors);
     } else {
       state.palette = medianCut(pixels, numColors);
+    }
+    // Detect and inject accent colors that median cut missed
+    if (numColors >= 4) {
+      state.palette = injectAccentColors(imageData, pixels, state.palette);
     }
   }
 
