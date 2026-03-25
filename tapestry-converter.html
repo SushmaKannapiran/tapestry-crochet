@@ -1824,6 +1824,8 @@ function generate() {
   updateProgress();
   renderThemes();
   renderYarnMatches();
+
+  setTimeout(fitZoom, 50);
 }
 
 function makeSolidFirstRow() {
@@ -2755,8 +2757,24 @@ $('resetProgress').addEventListener('click', () => {
 
 // ===================== ZOOM =====================
 $('zoomIn').addEventListener('click', () => { state.zoom = Math.min(5, state.zoom + 0.25); updateZoom(); });
-$('zoomOut').addEventListener('click', () => { state.zoom = Math.max(0.25, state.zoom - 0.25); updateZoom(); });
-$('zoomFit').addEventListener('click', () => { state.zoom = 1; updateZoom(); });
+$('zoomOut').addEventListener('click', () => { state.zoom = Math.max(0.1, state.zoom - 0.25); updateZoom(); });
+$('zoomFit').addEventListener('click', fitZoom);
+
+function fitZoom() {
+  if (!state.patternData) return;
+  const container = document.querySelector('.main');
+  if (!container) return;
+  const availW = container.clientWidth - 80;
+  const availH = window.innerHeight - 180;
+  const cellSize = Math.max(6, Math.min(20, Math.floor(600 / Math.max(state.gridW, state.gridH))));
+  const patternW = state.gridW * cellSize;
+  const patternH = state.gridH * cellSize;
+  const fitW = availW / patternW;
+  const fitH = availH / patternH;
+  state.zoom = Math.min(fitW, fitH, 2);
+  state.zoom = Math.max(0.1, Math.round(state.zoom * 20) / 20);
+  updateZoom();
+}
 
 function updateZoom() {
   $('zoomLevel').textContent = Math.round(state.zoom * 100) + '%';
