@@ -1,0 +1,47 @@
+=========================================================================
+TB SCRIPT UPDATE - 27 February 2026 (V5.1)
+=========================================================================
+
+
+=========================================================================
+WHAT CHANGED
+=========================================================================
+
+Synced script with server setup, fixed SpoTyping parsing, and updated
+QC III table to match client report columns.
+
+Changes:
+  1. Removed output_prefix argument — now 3 args (sample_dir,
+     sample_name, threads). Output: {sample}_Updated.results.txt
+  2. SpoTyping command uses local python2 path with -O and -o flags
+  3. SpoTyping file parsing searches 6 possible locations to find
+     the output file regardless of where SpoTyping saves it
+  4. QC III table now has all client columns:
+     Antibiotic | Locus | Gene | QC | NA mutations | AA mutations |
+     Unknown mutations | Number of deletions | Unknown deletions |
+     Number of insertions | Unknown insertions
+  5. Variant counting logic updated to track unknown mutations,
+     unknown deletions, and unknown insertions separately
+     (based on confidence: uncertain significance, indeterminate,
+     not assoc w r, not assoc w r - interim)
+  6. Fixed docstring (removed old output_prefix argument)
+
+
+=========================================================================
+HOW TO RUN
+=========================================================================
+
+python3 TB_Script_Final.py <sample_dir> <sample_name> <threads>
+
+Example:
+  python3 TB_Script_Final.py /data/samples/por5A por5A 8
+
+
+=========================================================================
+VERIFICATION CHECKLIST
+=========================================================================
+
+  [ ] Spoligotype shows octal and binary (not N/A)
+  [ ] QC III has all 11 columns (including Unknown mutations/deletions/insertions)
+  [ ] All other sections same as before
+  [ ] No duplication

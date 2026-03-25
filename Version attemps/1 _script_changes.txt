@@ -1,0 +1,175 @@
+TB_Script_Final.py - Bug Fixes (23 Feb 2026)
+=============================================
+
+5 bugs were identified from the previous run (Updated.txt output) and
+Abhishek's BS012867 output. All 5 have been fixed in TB_Script_Final.py.
+
+
+BUG 1: Median Depth showing N/A in SUMMARY section
+---------------------------------------------------
+WHERE:  Line 468 (inside generate_report function)
+
+WHAT WAS WRONG:
+  The script was reading: json_data['qc']['median_depth']
+  But this field does NOT exist in the TB-Profiler JSON.
+
+WHAT IT SHOULD BE:
+  The correct JSON path is: json_data['qc']['target_median_depth']
+
+  TB-Profiler v6.6.5 stores the overall median depth at:
+    qc -> target_median_depth  (median of all per-target median depths)
+
+  It does NOT have a field called just 'median_depth' under 'qc'.
+
+BEFORE:
+  json_data.get('qc', {}).get('median_depth', 'N/A')
+
+AFTER:
+  json_data.get('qc', {}).get('target_median_depth', 0) or 0
+
+EFFECT:
+  Previously showed "Median Depth: N/A" even though TB-Profiler reported 54.0.
+  Now it will correctly show "Median Depth: 54.0".
+
+
+BUG 2: Spoligotype octal and binary values are SWAPPED
+-------------------------------------------------------
+WHERE:  Lines 191-192 (inside parse_spoligotype function)
+
+WHAT WAS WRONG:
+  The script assigned parts[1] to octal and parts[2] to binary.
+  But SpoTyping v2.1 output format is:
+    Column 0 = input filename
+    Column 1 = BINARY code (43 characters of 0s and 1s)
+    Column 2 = OCTAL code (15 digit number)
+
+  So the values were reversed in the report.
+
+  In the Updated.txt output you can see:
+    Spoligotype_octal_code:  1110000111111111111111000000000000000000000  (this is clearly binary!)
+    Spoligotype_binary:      703777740000000  (this is clearly octal!)
+
+BEFORE:
+  result['octal']  = parts[1]   # WRONG - this is actually binary
+  result['binary'] = parts[2]   # WRONG - this is actually octal
+
+AFTER:
+  result['binary'] = parts[1]   # CORRECT - SpoTyping col1 = binary
+  result['octal']  = parts[2]   # CORRECT - SpoTyping col2 = octal
+
+  Also removed the SB_number assignment from parts[3] because SpoTyping
+  does NOT output an SB number in the main output file. The SB/SIT number
+  is only available via the separate SITVIT database query (.xls file).
+
+EFFECT:
+  Previously the octal and binary values were displayed under the wrong labels.
+  Now they will be correct:
+    Spoligotype_octal_code:  703777740000000
+    Spoligotype_binary:      1110000111111111111111000000000000000000000
+
+
+BUG 3: Drug appearing in BOTH Resistant and Unknown lists
+---------------------------------------------------------
+WHERE:  Line 343 (inside categorize_drugs function)
+
+WHAT WAS WRONG:
+  Streptomycin was showing up in BOTH "Predicted Resistance" AND "Unknown".
+
+  This happens when:
+    - dr_variants has streptomycin with "Assoc w R" -> goes into resistant set
+    - other_variants has streptomycin with "Uncertain significance" -> goes into unknown set
+    - The code never removed resistant drugs from the unknown set
+
+  In Updated.txt you can see:
+    Predicted Resistance:      streptomycin
+    Unknown:                   ..., streptomycin   <-- should NOT be here
+
+BEFORE:
+  susceptible = all_drugs - resistant - unknown
+  (unknown was never cleaned up)
+
+AFTER:
+  unknown = unknown - resistant          # NEW: remove drugs already confirmed resistant
+  susceptible = all_drugs - resistant - unknown
+
+EFFECT:
+  If a drug is confirmed resistant ("Assoc w R"), it will ONLY appear under
+  "Predicted Resistance" and NOT under "Unknown", even if it also has
+  "Uncertain significance" variants in other_variants.
+
+
+BUG 4: Script crashes when abricate output is empty
+----------------------------------------------------
+WHERE:  Lines 377-392 (extract_and_merge_vfdb_results function)
+        Lines 402-561 (generate_report function)
+
+WHAT WAS WRONG:
+  When abricate finds no virulence factors (like sample BS012867), the
+  .tab file has only the header row and no data. The script would then:
+    1. Read an empty dataframe
+    2. Try to merge it with VFDB annotations
+    3. Try to drop columns and filter by %COVERAGE/%IDENTITY
+    4. CRASH because the dataframe operations fail on empty data
+
+WHAT WAS ADDED:
+
+  In extract_and_merge_vfdb_results():
+    - Added check: if abricate_df.empty, print warning and return empty DataFrame
+    - Skips the VFDB merge entirely if no data
+
+  In generate_report():
+    - Added has_vfdb flag to track if VFDB data exists
+    - Only processes VFDB columns (drop, sort, filter) when has_vfdb is True
+    - Virulence factor sections now show fallback messages:
+        "No significant virulence factors detected."
+        "No descriptions available."
+        "No other virulence factors detected."
+
+EFFECT:
+  Previously the script would crash on samples like BS012867.
+  Now it gracefully handles empty abricate output and still generates the
+  full report with all other sections (TB-Profiler, lineage, resistance, QC).
+
+
+BUG 5: No warning for failed/zero-depth samples
+------------------------------------------------
+WHERE:  Lines 468-481 (inside generate_report function, SUMMARY section)
+
+WHAT WAS WRONG:
+  Samples like BS012867 (Median Depth: 0.0) and 160C_BatchEXT383 (PDF 3)
+  had zero coverage across the genome. Despite this, the report still
+  showed resistance calls (e.g., Amikacin R, Kanamycin R, Capreomycin R
+  from rrs variants) that are almost certainly FALSE POSITIVES.
+
+  The rrs and rrl genes are ribosomal RNA genes that are highly conserved
+  and multi-copy. Even with zero overall genome coverage, non-specific
+  reads can map to these regions and generate spurious variant calls.
+
+  There was no indication in the report that these results are unreliable.
+
+WHAT WAS ADDED:
+  - Calculates median_depth as a number (not string)
+  - Sets sample_failed = True when median_depth < 5 (matching the --depth 5
+    threshold used in the tb-profiler command)
+  - When sample_failed, adds a prominent warning block:
+
+    *** QC WARNING: SAMPLE FAILED ***
+    Median depth (0.0) is below minimum threshold (5).
+    Lineage, resistance, and variant calls are UNRELIABLE.
+    Resistance calls (especially rrs/rrl) may be FALSE POSITIVES.
+
+EFFECT:
+  Failed samples will now have a clear warning in the SUMMARY section so
+  that anyone reading the report knows the results cannot be trusted.
+
+
+INSTRUCTIONS FOR IDAA
+=====================
+1. Replace the old TB_Script_Final.py with this updated version
+2. No new dependencies needed - all changes are in the Python code only
+3. Run it the same way as before:
+   python3 TB_Script_Final.py <sample_dir> <sample_name> <output_prefix> <threads>
+4. Test with a good sample first (e.g., MTb-Oman-321403) to verify the
+   spoligotype and median depth fixes
+5. Then test with a bad sample (e.g., BS012867) to verify it no longer
+   crashes and shows the QC warning

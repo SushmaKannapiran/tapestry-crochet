@@ -99,6 +99,78 @@
   .upload-zone img { max-width: 100%; border-radius: 8px; }
   .upload-zone p { color: #666; font-size: 0.85rem; margin-top: 8px; }
 
+  .crop-container {
+    position: relative;
+    display: none;
+    margin-top: 8px;
+    border-radius: 8px;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  .crop-container img {
+    display: block;
+    width: 100%;
+    border-radius: 8px;
+  }
+  .crop-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    cursor: crosshair;
+  }
+  .crop-overlay::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.5);
+    pointer-events: none;
+  }
+  .crop-selection {
+    position: absolute;
+    border: 2px solid #ffd200;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
+    cursor: move;
+  }
+  .crop-selection::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 1px dashed rgba(255,255,255,0.4);
+  }
+  .crop-handle {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    background: #ffd200;
+    border-radius: 2px;
+  }
+  .crop-handle.tl { top: -5px; left: -5px; cursor: nw-resize; }
+  .crop-handle.tr { top: -5px; right: -5px; cursor: ne-resize; }
+  .crop-handle.bl { bottom: -5px; left: -5px; cursor: sw-resize; }
+  .crop-handle.br { bottom: -5px; right: -5px; cursor: se-resize; }
+  .crop-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .crop-actions button {
+    flex: 1;
+    padding: 6px;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .crop-apply {
+    background: linear-gradient(135deg, #f7971e, #ffd200);
+    color: #1a1a2e;
+  }
+  .crop-reset {
+    background: #2a2a3a;
+    color: #ccc;
+  }
+
   .control-row {
     display: flex;
     align-items: center;
@@ -819,6 +891,21 @@
         <p>Click or drag an image here</p>
       </div>
       <input type="file" id="fileInput" accept="image/*" hidden>
+      <div class="crop-container" id="cropContainer">
+        <img id="cropImg" src="">
+        <div class="crop-overlay" id="cropOverlay">
+          <div class="crop-selection" id="cropSel">
+            <div class="crop-handle tl" data-h="tl"></div>
+            <div class="crop-handle tr" data-h="tr"></div>
+            <div class="crop-handle bl" data-h="bl"></div>
+            <div class="crop-handle br" data-h="br"></div>
+          </div>
+        </div>
+      </div>
+      <div class="crop-actions" id="cropActions" style="display:none;">
+        <button class="crop-apply" id="cropApply">Crop & Use</button>
+        <button class="crop-reset" id="cropReset">Use Full Image</button>
+      </div>
     </div>
 
     <div class="panel">
@@ -1063,17 +1150,165 @@ function handleFile(file) {
   reader.onload = e => {
     const img = new Image();
     img.onload = () => {
+      state.fullImage = img;
       state.originalImage = img;
+      state.cropRegion = null;
       state.aspectRatio = img.width / img.height;
       uploadZone.innerHTML = `<img src="${e.target.result}" alt="uploaded">`;
       uploadZone.classList.add('has-image');
       $('generateBtn').disabled = false;
       if ($('lockRatio').checked) syncHeight();
+      showCropper(e.target.result, img);
     };
     img.src = e.target.result;
   };
   reader.readAsDataURL(file);
 }
+
+// ===================== CROP TOOL =====================
+function showCropper(src, img) {
+  const container = $('cropContainer');
+  const cropImg = $('cropImg');
+  const actions = $('cropActions');
+  cropImg.src = src;
+  container.style.display = 'block';
+  actions.style.display = 'flex';
+
+  cropImg.onload = () => {
+    const rect = cropImg.getBoundingClientRect();
+    const sel = $('cropSel');
+    const pad = 10;
+    sel.style.left = pad + 'px';
+    sel.style.top = pad + 'px';
+    sel.style.width = (rect.width - pad * 2) + 'px';
+    sel.style.height = (rect.height - pad * 2) + 'px';
+  };
+}
+
+(function initCrop() {
+  const overlay = $('cropOverlay');
+  const sel = $('cropSel');
+  let mode = null, startX, startY, origL, origT, origW, origH;
+
+  function getPos(e) {
+    const t = e.touches ? e.touches[0] : e;
+    const r = overlay.getBoundingClientRect();
+    return { x: t.clientX - r.left, y: t.clientY - r.top, maxW: r.width, maxH: r.height };
+  }
+
+  function onDown(e) {
+    e.preventDefault();
+    const target = e.target;
+    const p = getPos(e);
+    origL = parseInt(sel.style.left) || 0;
+    origT = parseInt(sel.style.top) || 0;
+    origW = parseInt(sel.style.width) || 50;
+    origH = parseInt(sel.style.height) || 50;
+    startX = p.x;
+    startY = p.y;
+
+    if (target.dataset.h) {
+      mode = target.dataset.h;
+    } else if (target === sel || sel.contains(target)) {
+      mode = 'move';
+    } else {
+      mode = 'new';
+      origL = p.x;
+      origT = p.y;
+      sel.style.left = p.x + 'px';
+      sel.style.top = p.y + 'px';
+      sel.style.width = '0';
+      sel.style.height = '0';
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+    document.addEventListener('touchmove', onMove, { passive: false });
+    document.addEventListener('touchend', onUp);
+  }
+
+  function clamp(v, mn, mx) { return Math.max(mn, Math.min(mx, v)); }
+
+  function onMove(e) {
+    if (!mode) return;
+    e.preventDefault();
+    const p = getPos(e);
+    const dx = p.x - startX;
+    const dy = p.y - startY;
+
+    if (mode === 'move') {
+      sel.style.left = clamp(origL + dx, 0, p.maxW - origW) + 'px';
+      sel.style.top = clamp(origT + dy, 0, p.maxH - origH) + 'px';
+    } else if (mode === 'new') {
+      const x = Math.min(origL, p.x);
+      const y = Math.min(origT, p.y);
+      sel.style.left = clamp(x, 0, p.maxW) + 'px';
+      sel.style.top = clamp(y, 0, p.maxH) + 'px';
+      sel.style.width = clamp(Math.abs(p.x - origL), 10, p.maxW - x) + 'px';
+      sel.style.height = clamp(Math.abs(p.y - origT), 10, p.maxH - y) + 'px';
+    } else {
+      let nl = origL, nt = origT, nw = origW, nh = origH;
+      if (mode.includes('r')) { nw = clamp(origW + dx, 20, p.maxW - origL); }
+      if (mode.includes('l')) { nl = clamp(origL + dx, 0, origL + origW - 20); nw = origW - (nl - origL); }
+      if (mode.includes('b')) { nh = clamp(origH + dy, 20, p.maxH - origT); }
+      if (mode.includes('t')) { nt = clamp(origT + dy, 0, origT + origH - 20); nh = origH - (nt - origT); }
+      sel.style.left = nl + 'px';
+      sel.style.top = nt + 'px';
+      sel.style.width = nw + 'px';
+      sel.style.height = nh + 'px';
+    }
+  }
+
+  function onUp() {
+    mode = null;
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('touchmove', onMove);
+    document.removeEventListener('touchend', onUp);
+  }
+
+  overlay.addEventListener('mousedown', onDown);
+  overlay.addEventListener('touchstart', onDown, { passive: false });
+
+  $('cropApply').addEventListener('click', () => {
+    const imgEl = $('cropImg');
+    const rect = imgEl.getBoundingClientRect();
+    const sel = $('cropSel');
+    const scaleX = state.fullImage.width / rect.width;
+    const scaleY = state.fullImage.height / rect.height;
+
+    const sx = parseInt(sel.style.left) * scaleX;
+    const sy = parseInt(sel.style.top) * scaleY;
+    const sw = parseInt(sel.style.width) * scaleX;
+    const sh = parseInt(sel.style.height) * scaleY;
+
+    const cropCanvas = document.createElement('canvas');
+    cropCanvas.width = sw;
+    cropCanvas.height = sh;
+    const ctx = cropCanvas.getContext('2d');
+    ctx.drawImage(state.fullImage, sx, sy, sw, sh, 0, 0, sw, sh);
+
+    const croppedImg = new Image();
+    croppedImg.onload = () => {
+      state.originalImage = croppedImg;
+      state.aspectRatio = croppedImg.width / croppedImg.height;
+      uploadZone.innerHTML = `<img src="${cropCanvas.toDataURL()}" alt="cropped">`;
+      uploadZone.classList.add('has-image');
+      if ($('lockRatio').checked) syncHeight();
+      $('cropContainer').style.display = 'none';
+      $('cropActions').style.display = 'none';
+    };
+    croppedImg.src = cropCanvas.toDataURL();
+  });
+
+  $('cropReset').addEventListener('click', () => {
+    state.originalImage = state.fullImage;
+    state.cropRegion = null;
+    state.aspectRatio = state.fullImage.width / state.fullImage.height;
+    if ($('lockRatio').checked) syncHeight();
+    $('cropContainer').style.display = 'none';
+    $('cropActions').style.display = 'none';
+  });
+})();
 
 // ===================== BACKGROUND UPLOAD =====================
 const bgUploadZone = $('bgUploadZone');

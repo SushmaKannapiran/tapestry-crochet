@@ -1,0 +1,515 @@
+=========================================================================
+TB PIPELINE UPDATE - 25 February 2026
+=========================================================================
+
+
+=========================================================================
+SECTION 1: PROJECT BACKGROUND
+=========================================================================
+
+What is this project?
+---------------------
+We are building a bioinformatics pipeline for Mycobacterium tuberculosis
+(TB) whole genome sequencing (WGS) analysis using Oxford Nanopore data.
+
+The pipeline takes a FASTQ file from nanopore sequencing and produces
+a comprehensive report covering:
+  - TB lineage classification (e.g., Lineage 1 Indo-Oceanic, Lineage 3
+    East-African-Indian, Lineage 4 Euro-American, etc.)
+  - Drug resistance prediction (Resistant / Susceptible / Unknown for
+    17 anti-TB drugs)
+  - Spoligotyping (molecular fingerprint of the TB strain)
+  - Virulence factor detection (using VFDB database)
+  - Quality control metrics (coverage per target gene)
+
+The goal is to match the format and content of client reports generated
+from Ion Torrent sequencing data, but using our nanopore WGS platform.
+
+
+What does the pipeline do (step by step)?
+------------------------------------------
+  Step 1: TB-Profiler v6.6.5
+    - Maps nanopore reads to the H37Rv reference genome using minimap2
+    - Calls variants using freebayes/bcftools
+    - Predicts lineage from lineage-defining SNPs
+    - Predicts drug resistance from known resistance-associated mutations
+    - Outputs JSON, TXT, and CSV result files
+
+  Step 2: SpoTyping v2.1
+    - Performs in silico spoligotyping from the raw FASTQ reads
+    - Outputs binary code (43 characters) and octal code (15 digits)
+    - TB-Profiler cannot do spoligotyping, which is why this is separate
+
+  Step 3: JSON Parsing
+    - Reads the TB-Profiler JSON output to extract:
+      * Lineage SNP details (position, coverage, allele percent)
+      * Drug resistance variants with confidence levels
+      * QC metrics per target gene (percent depth pass, median depth)
+    - This is what makes the detailed tables in the report possible
+
+  Step 4: MEGAHIT v1.2.9
+    - Assembles nanopore reads into contigs (de novo assembly)
+    - Needed for virulence factor detection
+
+  Step 5: ABRicate v1.0.1
+    - Screens assembled contigs against the VFDB database
+    - Identifies known virulence factors
+    - Results are merged with VFDB annotations for the report
+
+  Step 6: Report Generation
+    - Takes the TB-Profiler TXT report as base
+    - Appends new sections: SUMMARY, SPOLIGOTYPE, DRUG RESISTANCE SUMMARY,
+      MUTATIONS LINEAGE, MUTATIONS RESISTANCE, QUALITY METRICS,
+      VIRULENCE FACTORS
+    - Produces the final report TXT file
+
+
+Key tools and versions:
+-----------------------
+  Tool          Version   Purpose
+  ------------- --------- ------------------------------------------
+  TB-Profiler   6.6.5     Lineage + drug resistance from WGS
+  minimap2      (bundled)  Read mapping (nanopore mode)
+  freebayes     (bundled)  Variant calling
+  bcftools      1.22       Variant calling (alternative)
+  SpoTyping     2.1        In silico spoligotyping
+  MEGAHIT       1.2.9      De novo assembly
+  ABRicate      1.0.1      Virulence factor screening
+  VFDB          2025-Jan   Virulence factor database (2597 sequences)
+
+
+Server environment:
+-------------------
+  TB-Profiler conda env:  tb_profiler_env
+    Conda path:           /media/carme/Idaa/conda/anaconda3/etc/profile.d/conda.sh
+
+  ABRicate conda env:     abricate_env
+    Conda path:           /media/carme/ganesh/miniconda3/etc/profile.d/conda.sh
+
+  VFDB annotation file:   /media/carme/Research_Projects/BugSpeaks_MicrobiomeAnalysis/
+                          Tuberculosis_Firoz/VFDB/VFs_VFDB.csv
+
+  Script usage:
+    python3 TB_Script_Final.py <sample_dir> <sample_name> <output_prefix> <threads>
+
+  Example:
+    python3 TB_Script_Final.py /data/samples/por5A por5A TestResult 8
+
+
+=========================================================================
+SECTION 2: WHAT WAS WRONG (6 BUGS FOUND AND FIXED)
+=========================================================================
+
+These bugs were identified by comparing the script output against
+expected results and the client report format.
+
+
+BUG 1: Median Depth showing N/A in SUMMARY
+-------------------------------------------
+WHERE:  generate_report() function, SUMMARY section
+
+PROBLEM:
+  The script was reading: json_data['qc']['median_depth']
+  But this field does NOT exist in the TB-Profiler v6.6.5 JSON.
+
+  The correct JSON path is: json_data['qc']['target_median_depth']
+
+  TB-Profiler stores the overall median depth at:
+    qc -> target_median_depth  (median of all per-target median depths)
+
+FIX:
+  Changed from:  json_data.get('qc', {}).get('median_depth', 'N/A')
+  Changed to:    json_data.get('qc', {}).get('target_median_depth', 0) or 0
+
+RESULT:
+  Previously showed "Median Depth: N/A" even when TB-Profiler reported 54.0.
+  Now correctly shows the real number.
+
+
+BUG 2: Spoligotype octal and binary values SWAPPED
+---------------------------------------------------
+WHERE:  parse_spoligotype() function
+
+PROBLEM:
+  The script assigned column 1 to octal and column 2 to binary.
+  But SpoTyping v2.1 output format is:
+    Column 0 = input filename
+    Column 1 = BINARY code (43 characters of 0s and 1s)
+    Column 2 = OCTAL code (15 digit number)
+
+  So the report was showing:
+    Spoligotype_octal_code:  1110000111111111111111000000000000000000000  (this is binary!)
+    Spoligotype_binary:      703777740000000  (this is octal!)
+
+FIX:
+  Swapped the assignments:
+    result['binary'] = parts[1]   (SpoTyping col1 = binary)
+    result['octal']  = parts[2]   (SpoTyping col2 = octal)
+
+  Also removed SB_number assignment from parts[3] because SpoTyping
+  does NOT output an SB number in the main output file.
+
+RESULT:
+  Now correctly shows:
+    Spoligotype_octal_code:  703777740000000
+    Spoligotype_binary:      1110000111111111111111000000000000000000000
+
+
+BUG 3: Same drug appearing in BOTH Resistant and Unknown lists
+--------------------------------------------------------------
+WHERE:  categorize_drugs() function
+
+PROBLEM:
+  A drug like streptomycin was showing up in BOTH lists because:
+    - In dr_variants: streptomycin has "Assoc w R" -> added to resistant set
+    - In other_variants: streptomycin has "Uncertain significance" -> added to unknown set
+    - The code never removed resistant drugs from the unknown set
+
+  Report showed:
+    Predicted Resistance:  streptomycin
+    Unknown:               ..., streptomycin   <-- should NOT be here
+
+FIX:
+  Added one line before calculating susceptible:
+    unknown = unknown - resistant
+
+  This removes any drug from the unknown set if it's already confirmed resistant.
+
+RESULT:
+  A drug now only appears in ONE category. Resistant takes priority over Unknown.
+
+
+BUG 4: Script crashes when abricate output is empty
+----------------------------------------------------
+WHERE:  extract_and_merge_vfdb_results() and generate_report()
+
+PROBLEM:
+  When abricate finds no virulence factors, the .tab file has only the
+  header row and no data. The script would crash trying to drop columns
+  and filter by %COVERAGE/%IDENTITY on an empty dataframe.
+
+  This happens with poor quality samples where MEGAHIT assembly produces
+  no usable contigs.
+
+FIX:
+  In extract_and_merge_vfdb_results():
+    - Added early return if abricate dataframe is empty
+
+  In generate_report():
+    - Added has_vfdb flag to check if VFDB data exists
+    - Virulence sections now show graceful fallback messages:
+        "No significant virulence factors detected."
+        "No descriptions available."
+        "No other virulence factors detected."
+
+RESULT:
+  Script no longer crashes. Report generates completely even when
+  abricate has no results.
+
+
+BUG 5: No warning for failed/zero-depth samples
+------------------------------------------------
+WHERE:  generate_report(), SUMMARY section
+
+PROBLEM:
+  Samples with Median Depth 0.0 (essentially failed sequencing) still
+  produced reports with resistance calls that are almost certainly
+  FALSE POSITIVES. This is because:
+    - rrs and rrl are ribosomal RNA genes (highly conserved, multi-copy)
+    - Even with zero overall genome coverage, non-specific reads can
+      map to these regions and generate spurious variant calls
+    - The report had no indication these results are unreliable
+
+FIX:
+  Added a QC gate:
+    - Calculates median_depth as a number (not string)
+    - Sets sample_failed = True when median_depth < 5
+      (matches the --depth 5 threshold used in the tb-profiler command)
+    - When sample_failed, adds a prominent warning:
+
+      *** QC WARNING: SAMPLE FAILED ***
+      Median depth (0) is below minimum threshold (5).
+      Lineage, resistance, and variant calls are UNRELIABLE.
+      Resistance calls (especially rrs/rrl) may be FALSE POSITIVES.
+
+RESULT:
+  Failed samples now have a clear warning. Anyone reading the report
+  will immediately know the results cannot be trusted.
+
+
+BUG 6: Resistance table shows wrong confidence level
+-----------------------------------------------------
+WHERE:  create_resistance_table() function
+
+PROBLEM:
+  When a variant has multiple annotations (one per drug), the old code
+  just kept overwriting the confidence value with the LAST one in the
+  loop. Example:
+    rrs n.1484G>T has annotations:
+      - kanamycin:    "Assoc w R"
+      - amikacin:     "Assoc w R"
+      - capreomycin:  "Uncertain significance"  <-- last one, gets kept
+
+  So the Mutations Resistance table showed "Uncertain significance"
+  even though this variant IS associated with resistance.
+
+FIX:
+  Added a confidence ranking system:
+    "Not assoc w R"             = rank 0 (lowest)
+    "Not assoc w R - Interim"   = rank 0
+    "Uncertain significance"    = rank 1
+    "Indeterminate"             = rank 1
+    "Assoc w R - Interim"       = rank 2
+    "Assoc w R"                 = rank 3 (highest)
+
+  The code now tracks the highest-ranked confidence across all
+  annotations for each variant, instead of just keeping the last one.
+
+RESULT:
+  Resistance table correctly shows the strongest evidence level.
+
+
+=========================================================================
+SECTION 3: TEST DATA INCLUDED
+=========================================================================
+
+Why test data?
+--------------
+All previous test runs used either:
+  - Failed samples (BS012867: Median Depth 0.0, no lineage, no VFDB hits)
+  - Samples run on the OLD script before these fixes
+
+We need a KNOWN-GOOD sample with KNOWN answers to verify all 6 fixes
+actually work on a real dataset. If the output matches expected results,
+we can be confident the script is correct.
+
+
+What is the test data?
+----------------------
+File:    por5A.nanopore_reduced.fastq.gz (59 MB compressed)
+Source:  TB-Profiler developer's official test data repository
+         https://github.com/jodyphelan/tb-profiler-test-data
+Paper:   George et al. "Integrating informatics tools and portable
+         sequencing technology for rapid detection of resistance to
+         anti-tuberculous drugs." Genome Medicine 11, 41. 2019.
+
+This is a real M. tuberculosis clinical isolate (por5) sequenced on
+Oxford Nanopore MinION. It was used by the TB-Profiler developers
+themselves to validate their tool with nanopore data.
+
+Key facts about this sample:
+  - Platform:       Oxford Nanopore MinION (same as our pipeline)
+  - Resistance:     MDR-TB (multi-drug resistant)
+                    Resistant to at least Rifampicin + Isoniazid
+  - Coverage:       ~53x median depth (good quality)
+  - Reproducibility: 34 replicates tested, 94.5% concordance with
+                     Illumina/Sanger results
+
+
+Expected results (what the report SHOULD show):
+------------------------------------------------
+  Field                    Expected Value
+  ----------------------   ------------------------------------
+  Lineage                  Should detect a lineage (not empty)
+  Drug Resistance Type     MDR-TB
+  Rifampicin               Resistant (rpoB mutation)
+  Isoniazid                Resistant (katG or inhA mutation)
+  Median Depth             ~53 (real number, NOT "N/A")
+  Spoligotype octal        15-digit number (not 43-char binary)
+  Spoligotype binary       43-character string (not 15-digit octal)
+  QC Warning               Should NOT appear (good sample)
+  Virulence Factors        Should have VFDB hits (not empty)
+  Drug categorization      No drug in both Resistant and Unknown
+
+
+=========================================================================
+SECTION 4: HOW TO RUN
+=========================================================================
+
+Files in this folder:
+  1. TB_Script_Final.py               - Updated script (all 6 fixes applied)
+  2. TB_Script_Changes_24Feb2026.txt   - This document
+  3. por5A.nanopore_reduced.fastq.gz   - Test data (59 MB compressed)
+
+
+Step 1: Copy files to the server
+---------------------------------
+Transfer TB_Script_Final.py and por5A.nanopore_reduced.fastq.gz
+to the server.
+
+
+Step 2: Decompress the test data
+---------------------------------
+  gunzip por5A.nanopore_reduced.fastq.gz
+
+This will produce: por5A.nanopore_reduced.fastq (~120 MB)
+
+
+Step 3: Set up sample directory
+-------------------------------
+  mkdir -p /path/to/test/por5A
+  mv por5A.nanopore_reduced.fastq /path/to/test/por5A/por5A.fastq
+
+NOTE: The script expects the FASTQ file to be named <sample_name>.fastq
+inside the sample directory. So if sample_name is "por5A", the file
+must be at: /path/to/test/por5A/por5A.fastq
+
+
+Step 4: Run the updated script
+-------------------------------
+  python3 TB_Script_Final.py /path/to/test/por5A por5A TestResult 8
+
+Arguments:
+  /path/to/test/por5A  = directory containing the FASTQ file
+  por5A                = sample name
+  TestResult           = prefix for the output file
+  8                    = number of threads
+
+
+Step 5: Verify the output
+-------------------------
+Open the output report and check:
+
+  [ ] Median Depth shows ~53 (NOT "N/A" or 0)
+  [ ] No "*** QC WARNING ***" appears (this is a good sample)
+  [ ] Spoligotype_octal_code is a 15-digit number
+  [ ] Spoligotype_binary is a 43-character string of 0s and 1s
+  [ ] Rifampicin shows as Resistant
+  [ ] Isoniazid shows as Resistant
+  [ ] Drug Resistance Type shows MDR-TB
+  [ ] No drug appears in BOTH Resistant and Unknown lists
+  [ ] Mutations Resistance table has confidence = "Assoc w R" for the
+      resistance variants (not "Uncertain significance")
+  [ ] Quality Metrics table has data (not empty)
+  [ ] Virulence Factors section has data (not "No significant...")
+  [ ] Mutations Lineage table shows lineage SNPs with positions
+
+If all checks pass, the script is ready for production use.
+If any check fails, share the output report for review.
+
+
+=========================================================================
+SECTION 5: ADDITIONAL FIXES (FROM por5A TEST RUN)
+=========================================================================
+
+After running the script on the por5A test data, 3 more issues were
+found and fixed.
+
+
+BUG 7: All report sections appearing TWICE (duplication)
+---------------------------------------------------------
+WHERE:  generate_report() — txt file selection and final assembly
+
+PROBLEM:
+  Every section in the report (SUMMARY, SPOLIGOTYPE, DRUG RESISTANCE
+  SUMMARY, MUTATIONS, QC, VIRULENCE, pipeline specs, citations) was
+  appearing twice in the output PDF.
+
+  Root cause 1: Line 433 picks the first .txt file in the results
+  directory using os.listdir(). If the script was run before, the
+  directory contains BOTH the original TB-Profiler output AND the
+  previously generated report (which already has our sections). If
+  the previously processed file is picked, our sections get appended
+  a second time.
+
+  Root cause 2: The after_pipeline variable (content after the
+  citation block) could contain leftover content from a previous run.
+
+  Root cause 3: The re.sub for adding abricate/SpoTyping to the
+  pipeline block had no count limit, so if the pattern matched
+  multiple times, it would insert the tools multiple times.
+
+FIX:
+  1. txt file selection now EXCLUDES files starting with output_prefix
+     (i.e., previously generated reports) — only picks the original
+     TB-Profiler output file.
+
+  2. after_pipeline is now set to "" (empty string) — nothing after
+     the citation block is kept, preventing leftover content.
+
+  3. re.sub now uses count=1 — only the first match is replaced.
+
+RESULT:
+  All sections appear exactly once in the report.
+
+
+BUG 8: VFDB thresholds too strict for nanopore data
+----------------------------------------------------
+WHERE:  generate_report() — virulence factor filtering
+
+PROBLEM:
+  The "Significant Virulence Factors" filter required >95% coverage
+  AND >95% identity. This threshold is appropriate for Illumina data
+  (which has <1% error rate) but too strict for nanopore (~5% error
+  rate). As a result, valid virulence factor hits (e.g., esxH at
+  83.85% coverage, 80.71% identity) were being classified as "Other"
+  instead of "Significant".
+
+FIX:
+  Lowered thresholds to >=80% coverage AND >=80% identity for nanopore
+  data. These are defined as variables (sig_cov_thresh, sig_id_thresh)
+  at the top of the filtering block for easy adjustment if needed.
+
+RESULT:
+  Virulence factors with nanopore-typical identity scores now
+  correctly appear under "Significant Virulence Factors".
+
+
+BUG 9: "Other Virulence Factors" filter logic was wrong
+--------------------------------------------------------
+WHERE:  generate_report() — virulence factor filtering
+
+PROBLEM:
+  The "Other" filter used: %COVERAGE < 95 AND %IDENTITY < 95
+  This missed hits where coverage was high but identity was low
+  (or vice versa). For example, a hit with 98% coverage but 70%
+  identity would NOT appear in either Significant OR Other.
+
+  Correct logic: "Other" should be everything that is NOT significant,
+  i.e., %COVERAGE < threshold OR %IDENTITY < threshold.
+
+FIX:
+  Changed from: (< threshold) AND (< threshold)
+  Changed to:   (< threshold) OR  (< threshold)
+
+RESULT:
+  All virulence factor hits now appear in exactly one category —
+  either Significant or Other. None are lost.
+
+
+=========================================================================
+SECTION 6: QUICK REFERENCE - TB-PROFILER JSON STRUCTURE
+=========================================================================
+
+For future reference, here are the correct JSON paths used in the script:
+
+  What                        JSON Path
+  --------------------------  -----------------------------------------
+  Sample ID                   data['id']
+  Main lineage                data['main_lineage']
+  Sub lineage                 data['sub_lineage']
+  Drug resistance type        data['drtype']
+  Overall median depth        data['qc']['target_median_depth']
+  Genome median depth         data['qc']['genome_median_depth']
+  Per-gene QC list            data['qc']['target_qc']
+    Per-gene target name        data['qc']['target_qc'][i]['target']
+    Per-gene % depth pass       data['qc']['target_qc'][i]['percent_depth_pass']
+    Per-gene median depth       data['qc']['target_qc'][i]['median_depth']
+  Lineage info list           data['lineage']
+    Lineage name                data['lineage'][i]['lineage']
+    Family name                 data['lineage'][i]['family']
+    RD marker                   data['lineage'][i]['rd']
+    Supporting SNPs             data['lineage'][i]['support']
+  Resistance variants list    data['dr_variants']
+    Gene name                   data['dr_variants'][i]['gene_name']
+    Locus tag                   data['dr_variants'][i]['locus_tag']
+    Position                    data['dr_variants'][i]['pos']
+    Change                      data['dr_variants'][i]['change']
+    Depth                       data['dr_variants'][i]['depth']
+    Frequency                   data['dr_variants'][i]['freq']
+    Annotations                 data['dr_variants'][i]['annotation']
+      Drug                        annotation[j]['drug']
+      Confidence                  annotation[j]['confidence']
+      Comment                     annotation[j]['comment']
+  Other variants list         data['other_variants']
+    (same structure as dr_variants)

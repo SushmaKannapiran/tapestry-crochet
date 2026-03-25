@@ -1,0 +1,116 @@
+=========================================================================
+TB SCRIPT UPDATE - 26 February 2026 (V5.0)
+=========================================================================
+
+
+=========================================================================
+WHAT CHANGED
+=========================================================================
+
+The report generation was rewritten to match the client report format
+(1 TB.pdf, 2 tb.pdf) exactly — same sections, same columns, same data.
+
+Key changes:
+  - H37Rv gene reference data (73 genes) embedded in the script
+  - Genomic Variants table now shows ALL variants (not just resistance)
+  - Three QC tables instead of two
+  - Lineage shows only deepest level (not all parents)
+  - Added INFO section with metadata and disclaimer
+  - Updated INDEX
+
+
+=========================================================================
+SPECIFIC CHANGES
+=========================================================================
+
+1. H37Rv Gene Reference Data
+-----------------------------
+  Added H37RV_GENES dictionary with 73 genes, each containing:
+  start, stop, size, strand, locus_tag
+  Source: H37Rv reference genome (NC_000962.3) GFF from tbdb
+  Includes rrs and rrl ribosomal RNA genes
+
+2. Genomic Variants — ALL variants, client columns
+----------------------------------------------------
+  OLD: "MUTATIONS - DRUG RESISTANCE" — only resistance variants
+       Columns: Drug | Locus | Locus Tag | Nucleotide change |
+       Amino Acid Change | Confidence | Coverage | Rel coverage | Notes
+
+  NEW: "GENOMIC VARIANTS RESISTANCE" — ALL variants (dr + other)
+       Columns: Antibiotic | Locus | Gene | Size | Position |
+       Genomic Position | Type | WT | Call | Relative coverage (%) | Strand
+
+3. Mutations Lineage — deepest only
+--------------------------------------
+  OLD: Showed all lineage levels (lineage4, lineage4.3, lineage4.3.4, etc.)
+  NEW: Shows only the deepest lineage entry
+
+4. QC expanded to three tables
+---------------------------------
+  OLD: Two simple tables (% depth and Median)
+  NEW: Three tables matching client format:
+    Table I:   Antibiotic | Locus | Gene | QC | Size | % depth > 5 | Median | Start | Stop
+    Table II:  Antibiotic | Locus | Gene | QC | NA mutations | AA mutations
+    Table III: Antibiotic | Locus | Gene | QC | Deletions | Insertions
+
+5. Added INFO section
+-----------------------
+  General: Sample ID, Species, Analysis date, version, database, reads, depth
+  Lineage: Main lineage, Sub lineage, Family, RD, Spoligotype
+  Resistance: Drug resistance type, variant counts
+  Disclaimer: Research-use statement
+
+6. New helper functions
+-------------------------
+  get_variant_type()      — Mutation/Deletion/Insertion from ref/alt
+  get_position_in_gene()  — Position from HGVS c. notation
+  get_strand_info()       — Strand from forward/reverse read counts
+  get_gene_drugs()        — Drug associations for each gene
+
+7. Updated INDEX
+------------------
+  Now lists all sections with new names
+
+
+=========================================================================
+SPOTYPING
+=========================================================================
+
+SpoTyping is NOT installed yet. Until installed, spoligotype = N/A.
+
+To install:
+  source /media/carme/Idaa/conda/anaconda3/etc/profile.d/conda.sh
+  conda activate tb_profiler_env
+  conda install -c bioconda spoltyping -y
+
+Verify: SpoTyping.py -h
+Fallback: pip install SpoTyping
+
+No code changes needed — script handles it automatically once installed.
+
+
+=========================================================================
+HOW TO RUN
+=========================================================================
+
+python3 TB_Script_Final.py <sample_dir> <sample_name> <output_prefix> <threads>
+
+Example:
+  python3 TB_Script_Final.py /data/samples/por5A por5A TestResult 8
+
+
+=========================================================================
+VERIFICATION CHECKLIST
+=========================================================================
+
+  [ ] INDEX lists all 14 sections
+  [ ] SUMMARY has 12 fields
+  [ ] Genomic Variants shows ALL variants (70+ rows)
+  [ ] Genomic Variants columns match client (Antibiotic, Gene, Size, etc.)
+  [ ] Lineage shows only deepest level
+  [ ] QC Table I has Size, Start, Stop
+  [ ] QC Table II has NA mutations, AA mutations
+  [ ] QC Table III has deletions, insertions
+  [ ] INFO section with disclaimer present
+  [ ] No duplication
+  [ ] No raw TB-Profiler text dump

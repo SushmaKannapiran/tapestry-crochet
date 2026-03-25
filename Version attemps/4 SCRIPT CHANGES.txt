@@ -1,0 +1,250 @@
+=========================================================================
+TB PIPELINE UPDATE - 25 February 2026 (V4.0 — Client Format Rewrite)
+=========================================================================
+
+
+=========================================================================
+SECTION 1: WHAT CHANGED (V4.0)
+=========================================================================
+
+The entire report generation was REWRITTEN to match the client report
+format (1 TB.pdf and 2 tb.pdf) exactly.
+
+Previously, the script took TB-Profiler's raw .txt output file as a
+base and appended custom sections to it. This produced a report that
+started with a multi-page TB-Profiler text dump, followed by our
+structured data tacked on at the end. It looked nothing like the
+client reports.
+
+Now, the script IGNORES the TB-Profiler .txt file entirely and builds
+the complete report from scratch using the JSON data. This also
+permanently eliminates the duplication bug (Bug 7) since there is no
+more .txt file parsing, copying, or regex insertion.
+
+
+What the report now contains (matching client format):
+------------------------------------------------------
+  1.  INDEX — Table of contents listing all sections
+  2.  SUMMARY — 12-field table (Sample name, Species, Phylogenetic
+      lineage, Family, Spoligotype Octal, Spoligotype Binary,
+      Median Depth, % reads mapping, Drug resistance, Notes,
+      Sublineage, RD)
+  3.  SPOLIGOTYPE — Octal code, Binary code, SB Number
+  4.  DRUG RESISTANCE SUMMARY — Three separate sub-tables:
+      - Predicted Drug Resistance (each drug with confidence)
+      - Predicted Drug Susceptibility (each drug with "No mutation")
+      - Other / Unknown (each drug with confidence)
+  5.  MUTATIONS - DRUG RESISTANCE — One row per drug per variant:
+      Drug | Locus | Locus Tag | Variant Nucleotide change |
+      Variant Amino Acid Change | Confidence | Coverage |
+      Relative coverage (%) | Notes
+  6.  MUTATIONS - LINEAGE — SNP evidence for lineage:
+      Lineage | Locus | Position | WT | Call | Coverage |
+      Relative coverage (%)
+  7.  QUALITY METRICS - COVERAGE — Two sub-tables:
+      - Table 1: Locus | QC | Percentage depth > 5
+      - Table 2: Locus | QC | Median
+  8.  SIGNIFICANT VIRULENCE FACTORS — ABRicate VFDB hits above 80%
+  9.  SIGNIFICANT VIRULENCE FACTORS - DESCRIPTION — VF annotations
+  10. OTHER VIRULENCE FACTORS — Below-threshold VFDB hits
+  11. ANALYSIS PIPELINE SPECIFICATIONS — Built from JSON pipeline
+      object (not parsed from .txt file)
+  12. TARGET REGIONS — List of all 74 target genes
+  13. CITATIONS — References for all tools used
+
+
+=========================================================================
+SECTION 2: SPECIFIC CHANGES MADE
+=========================================================================
+
+CHANGE 1: Report no longer uses TB-Profiler .txt file
+------------------------------------------------------
+  OLD: shutil.copy() the .txt file, find "Analysis pipeline
+       specifications", split content, insert sections with re.sub
+  NEW: generate_report() builds everything from JSON data directly
+       and writes a clean file. No .txt parsing at all.
+
+CHANGE 2: SUMMARY section expanded to 12 fields
+-------------------------------------------------
+  OLD: 5 fields (Sample Name, Main Lineage, Sub Lineage, Drug
+       Resistance Type, Median Depth)
+  NEW: 12 fields matching client format:
+       + Species (hardcoded "Mycobacterium tuberculosis")
+       + Family (from JSON lineage[].family with abbreviation lookup)
+       + Spoligotype Octal/Binary (from SpoTyping)
+       + % reads mapping (from JSON qc.percent_reads_mapped)
+       + Notes (from JSON notes[])
+       + Sublineage (from JSON sub_lineage)
+       + RD (from JSON lineage[].rd)
+
+CHANGE 3: Drug Resistance Summary — three sub-tables
+-----------------------------------------------------
+  OLD: Three comma-separated lists of drug names
+  NEW: Three separate tables with Drug | Confidence columns
+       Each drug on its own row with its specific confidence level
+       Susceptible drugs show "No mutation"
+
+CHANGE 4: Mutations Resistance — one row per drug
+---------------------------------------------------
+  OLD: One row per variant, all drugs comma-joined, combined "Change"
+  NEW: One row per drug per variant. If inhA c.-777C>T affects both
+       isoniazid and ethionamide, two separate rows appear with
+       each drug's own confidence level
+  OLD columns: Drug, Locus, Locus_Tag, Position, WT, Call, Change,
+               Confidence, Coverage, Frequency, Notes
+  NEW columns: Drug, Locus, Locus Tag, Variant Nucleotide change,
+               Variant Amino Acid Change, Confidence, Coverage,
+               Relative coverage (%), Notes
+  Uses nucleotide_change and protein_change fields from JSON
+  (previously used the combined "change" field)
+  Frequency now shown as percentage (x100)
+
+CHANGE 5: Mutations Lineage — added Locus, WT, Call columns
+-------------------------------------------------------------
+  OLD: Lineage, Position, Coverage, Relative_coverage_%
+  NEW: Lineage, Locus, Position, WT, Call, Coverage, Relative coverage (%)
+  Uses a position-to-variant lookup that cross-references lineage SNP
+  positions against dr_variants + other_variants to find gene names
+  and alleles. Falls back to "-" for positions not in variant arrays.
+
+CHANGE 6: QC table split into two sub-tables
+----------------------------------------------
+  OLD: One table with Locus, QC_Passed, Percent_Depth_Pass, Median_Depth
+  NEW: Two separate tables matching client format:
+       Table 1: Locus | QC (PASS/FAIL) | Percentage depth > 5
+       Table 2: Locus | QC (PASS/FAIL) | Median
+
+CHANGE 7: Pipeline specs from JSON (not .txt)
+-----------------------------------------------
+  OLD: Parsed from TB-Profiler .txt file with regex
+  NEW: Built from JSON pipeline.software[] array + our additions
+       Includes database version info (commit, date)
+
+CHANGE 8: Added INDEX section
+-------------------------------
+  Numbered table of contents listing all 11 report sections.
+
+CHANGE 9: Added TARGET REGIONS section
+----------------------------------------
+  Lists all 74 target genes from the QC data, matching client format.
+
+CHANGE 10: Added CITATIONS section
+------------------------------------
+  Dedicated section with references for TB-Profiler, ABRicate, VFDB,
+  SpoTyping, Minimap2, and MEGAHIT.
+
+CHANGE 11: Added FAMILY_ABBREV lookup
+---------------------------------------
+  Maps lineage family names to standard abbreviations:
+  Indo-Oceanic → EAI, East-Asian → Beijing, East-African-Indian → CAS,
+  Euro-American → Euro-American, etc.
+  Used in both SUMMARY (Family field) and MUTATIONS - LINEAGE table.
+
+
+=========================================================================
+SECTION 3: ALL BUG FIXES PRESERVED
+=========================================================================
+
+All 9 bug fixes from previous versions are retained in V4.0:
+
+  Bug 1: Median Depth — uses qc.target_median_depth (not qc.median_depth)
+  Bug 2: Spoligotype swap — binary=parts[1], octal=parts[2]
+  Bug 3: Drug duplication — resistant drugs removed from unknown set
+         (now built into the confidence ranking in categorize_drugs)
+  Bug 4: Empty abricate — graceful handling with fallback messages
+  Bug 5: QC warning — prominent warning when median_depth < 5
+  Bug 6: Confidence ranking — highest confidence wins per drug
+  Bug 7: Duplication — PERMANENTLY FIXED (no .txt file parsing at all)
+  Bug 8: VFDB thresholds — 80% for nanopore (not 95%)
+  Bug 9: VF filter logic — OR (not AND) for "Other" category
+
+
+=========================================================================
+SECTION 4: HOW TO RUN
+=========================================================================
+
+Files in this folder:
+  1. TB_Script_Final.py               - V4.0 script (client format)
+  2. TB_Script_Changes_25Feb2026.txt   - This document
+  3. por5A.nanopore_reduced.fastq.gz   - Test data (59 MB compressed)
+  4. TB_WGS_Report_Guide.txt           - Report interpretation guide
+
+IMPORTANT — SpoTyping installation:
+  SpoTyping is NOT installed yet. Until installed, Spoligotype fields
+  will show N/A in the report. To install:
+
+    source /media/carme/Idaa/conda/anaconda3/etc/profile.d/conda.sh
+    conda activate tb_profiler_env
+    conda install -c bioconda spoltyping -y
+
+  Verify: SpoTyping.py -h
+
+  If conda install fails, use: pip install SpoTyping
+
+  The script already calls SpoTyping automatically (Step 2).
+  No code changes needed after installation.
+
+
+Usage:
+  python3 TB_Script_Final.py <sample_dir> <sample_name> <output_prefix> <threads>
+
+Example:
+  python3 TB_Script_Final.py /data/samples/por5A por5A TestResult 8
+
+
+=========================================================================
+SECTION 5: VERIFICATION CHECKLIST
+=========================================================================
+
+After running, verify the output report:
+
+  [ ] INDEX section lists all 11 sections
+  [ ] SUMMARY has all 12 fields (Species, Family, % reads mapping, RD, etc.)
+  [ ] SPOLIGOTYPE shows octal, binary, SB number
+  [ ] Drug Resistance Summary has 3 separate sub-tables
+  [ ] Each drug on its own row with confidence level
+  [ ] Mutations Resistance has separate Nucleotide/Amino Acid columns
+  [ ] Mutations Resistance has one row per drug (not per variant)
+  [ ] Mutations Lineage has Locus, WT, Call columns
+  [ ] QC split into 2 tables (% depth > 5 and Median)
+  [ ] Pipeline specs built from JSON (includes DB info)
+  [ ] Target Regions section lists all 74 genes
+  [ ] Citations section present with all references
+  [ ] NO DUPLICATION — each section appears exactly ONCE
+  [ ] No raw TB-Profiler text dump at the beginning
+  [ ] Virulence factors present (80% threshold for nanopore)
+
+
+=========================================================================
+SECTION 6: JSON FIELD REFERENCE
+=========================================================================
+
+Fields used in V4.0 (all confirmed in TB-Profiler v6.6.5 JSON):
+
+  Summary fields:
+    data['id']                              → Sample name
+    data['sub_lineage']                     → Phylogenetic lineage
+    data['lineage'][-1]['family']            → Family
+    data['lineage'][-1]['rd']                → RD marker
+    data['qc']['target_median_depth']       → Median Depth
+    data['qc']['percent_reads_mapped']      → % reads mapping
+    data['drtype']                          → Drug resistance type
+    data['notes']                           → Notes
+    data['main_lineage']                    → Main lineage
+
+  Resistance fields:
+    data['dr_variants'][i]['nucleotide_change']  → Nucleotide change
+    data['dr_variants'][i]['protein_change']     → Amino acid change
+    data['dr_variants'][i]['annotation'][j]['drug']        → Drug name
+    data['dr_variants'][i]['annotation'][j]['confidence']   → WHO confidence
+    data['dr_variants'][i]['annotation'][j]['comment']      → Notes
+
+  Pipeline fields:
+    data['pipeline']['software_version']    → TB-Profiler version
+    data['pipeline']['software'][i]         → {process, software, version}
+    data['pipeline']['db_version']          → Database info (name, commit, date)
+
+  QC fields:
+    data['qc']['target_qc'][i]['target']            → Gene name
+    data['qc']['target_qc'][i]['percent_depth_pass'] → % depth > threshold
+    data['qc']['target_qc'][i]['median_depth']       → Per-gene median depth

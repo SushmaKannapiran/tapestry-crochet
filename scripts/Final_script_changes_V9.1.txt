@@ -1,0 +1,303 @@
+=========================================================================
+TB SCRIPT UPDATE - 24 March 2026 (V9.1 — WT/Call & Locus Tag Fixes)
+=========================================================================
+Based on: V9.0 + data-level fixes for lineage WT/Call and locus tags
+
+
+=========================================================================
+WHAT CHANGED
+=========================================================================
+
+Complete rewrite of ALL report section builders to match the client's
+report format exactly. The underlying pipeline (TB-Profiler, SpoTyping,
+MEGAHIT, ABRicate) is unchanged. Only the report output format changed.
+
+Summary of V9.0 changes:
+  1. Summary section matches client layout — field names, drug
+     abbreviations, MDR/XDR flags, predicted lineage/resistance lists
+  2. Drug names show abbreviations: "Isoniazid (INH)"
+  3. No confidence column in drug summary (matches client)
+  4. Lineage table: short names "1 Indo-Oceanic" + Notes column
+  5. QC tables split into Lineage (3 tables) + Resistance (3 tables)
+     matching client column names exactly
+  6. Resistance split into 3 sub-tables: Mutations resistance,
+     Premature stop codons resistance, Insertions/deletions resistance
+     — each with Conclusion and Notes columns
+  7. QC columns renamed: "Number of bases covered", "Average coverage",
+     "QC Passed" (Yes/No instead of PASS/FAIL)
+  8. Codon integrity tables (QC II lineage, QC III resistance) added
+  9. Info section matches client: General/Lineage/Resistance subsections
+ 10. Disclaimer section separated
+ 11. Report structure: Summary → Details (Lineage → Resistance) →
+     Genomic variants → Virulence → Pipeline → Info → Disclaimer
+
+
+=========================================================================
+SPECIFIC CHANGES (V9.0 vs V8.2)
+=========================================================================
+
+1. DRUG_DISPLAY + DRUG_ABBREV Dictionaries (NEW)
+--------------------------------------------------
+  Two new dictionaries for drug name formatting:
+  - DRUG_DISPLAY: full display names e.g. "Isoniazid (INH)"
+  - DRUG_ABBREV: abbreviations only e.g. "INH"
+  Covers all 20 drugs including fluoroquinolone class.
+
+2. Helper Functions (NEW)
+--------------------------
+  - drug_display_name(drug): returns "Isoniazid (INH)" format
+  - get_variant_conclusion(var): derives Conclusion from confidence
+    ("Resistant", "Unknown", "Not associated")
+  - get_variant_notes(var): marks uncertain variants as "atypical"
+
+3. categorize_drugs() — Added fluoroquinolone (CHANGED)
+---------------------------------------------------------
+  Added 'fluoroquinolone' to all_drugs set (21 drugs total).
+  Client reports list "Fluoroquinolone (FQ)" as a separate drug class.
+
+4. Summary Section — Complete Rewrite (CHANGED)
+-------------------------------------------------
+  OLD: "Field\tValue" table with Sample name, Species, etc.
+  NEW: Matches client format exactly:
+    - Title: sample name + "MTBC functional genotyping report"
+    - Disclaimer line at top
+    - Key-value fields: Date, Name, Core (v2) ST, Species_determination,
+      Lineage_number, Lineage_name, Spoligotype_octal_code,
+      Spoligotype_SB_number, Resistance_unknown, Genotype_unknown,
+      MDR_or_XDR
+    - Predicted lineage: "1 Indo-Oceanic", "1.1 Indo-Oceanic", etc.
+    - Predicted resistance: drug names with abbreviations
+    - Predicted susceptibility: drug names with abbreviations
+    - Unknown: drug names with abbreviations
+    - Multidrug-resistant: True/False
+    - Extensively drug-resistant: True/False
+
+  Resistance_unknown field shows drug abbreviations: "AMK / CAP / ..."
+  MDR_or_XDR derived from TB-Profiler drtype field.
+
+5. Drug Resistance Summary — Removed (CHANGED)
+-------------------------------------------------
+  build_drug_resistance_summary_section() removed entirely.
+  Drug categorization is now part of the Summary section.
+  No separate "Confidence" column — matches client format.
+
+6. Lineage Table — Client Format (CHANGED)
+---------------------------------------------
+  OLD: "lineage1 (Indo-Oceanic / EAI)" with all SNPs
+  NEW: "1 Indo-Oceanic" — strip "lineage" prefix, show family name
+  - Locus column: shows locus tags (Rv0524) instead of gene names
+  - Added "Notes" column (empty by default, matches client structure)
+  - Still shows ALL lineage levels with all support SNPs
+
+7. QC Tables — Split Lineage/Resistance (CHANGED)
+----------------------------------------------------
+  OLD: 3 combined QC tables (I/II/III)
+  NEW: 6 separate tables (3 lineage + 3 resistance):
+
+  Lineage QC:
+    - QC I lineage: Locus, QC Passed, Size, Number of bases covered,
+      Average coverage, Start, Stop
+    - QC II lineage: Locus, QC Passed, Unresolved bases, Start codon,
+      Stop codon, Internal stop codon
+    - QC III lineage: Locus, QC Passed, NA mutations, AA mutations,
+      Number of deletions, Number of insertions
+
+  Resistance QC:
+    - QC I resistance: Antibiotic, Locus, Gene, QC Passed, Size,
+      Number of bases covered, Average coverage, Start, Stop
+    - QC II resistance: Antibiotic, Locus, QC Passed, NA mutations,
+      AA mutations, Unknown mutations, Number of deletions,
+      Unknown deletions, Number of insertions, Unknown insertions
+    - QC III resistance: Antibiotic, Locus, QC Passed, Unresolved bases,
+      Start Codon, Stop Codon, Internal stop Codon
+
+  Column changes:
+    - "PASS"/"FAIL" → "Yes"/"No" (matches client)
+    - "Percentage depth > 5" → "Number of bases covered"
+      (computed as: size * percent_depth_pass / 100)
+    - "Median Depth" → "Average coverage" (relabeled)
+    - Start/Stop: now gene-relative (1 to Size) not genomic coords
+
+  Note: QC II lineage and QC III resistance show codon integrity data.
+  TB-Profiler doesn't compute this, so defaults are used:
+  Unresolved bases = 0, Start codon = Yes, Stop codon = Yes,
+  Internal stop codon = No.
+
+8. Resistance Sub-Tables (NEW)
+---------------------------------
+  build_resistance_tables_section() — splits variants into 3 tables:
+
+  a) Mutations resistance:
+     Antibiotic, Locus, Codon position, Genomic position, WT, Call,
+     Conclusion, Coverage, Relative coverage (%), Notes
+     - Shows amino acid changes from protein_change field
+     - Conclusion derived from confidence annotation
+
+  b) Premature stop codons resistance:
+     Same columns — filters for stop codon mutations
+
+  c) Insertions/deletions resistance:
+     Antibiotic, Locus, Codon position, Genomic position, WT, Call,
+     Conclusion, Notes
+     - Shows nucleotide-level indels
+
+  Conclusion values: "Resistant", "Unknown", "Not associated"
+  Notes: "atypical" for uncertain significance variants
+
+9. Genomic Variants — Updated (CHANGED)
+------------------------------------------
+  Column "Relative coverage (%)" → "Relative coverage"
+  (matches client column name)
+
+10. Info Section — Client Format (CHANGED)
+---------------------------------------------
+  OLD: General/Lineage/Resistance/Disclaimer subsections with
+       TB-Profiler-specific fields
+  NEW: Matches client layout:
+    General:
+      Plugin version at time of report: {tb-profiler version}
+    Lineage:
+      Description text, Analysis Date, Plugin version,
+      Minimum coverage: 5, Minimum relative coverage (%): 10.0
+    Resistance:
+      Description text, Analysis Date, Plugin version,
+      Minimum coverage: 5, Minimum relative coverage (%): 10,
+      database: {db name}
+
+11. Disclaimer — Separated (NEW)
+-----------------------------------
+  build_disclaimer_section() — matches client's short disclaimer.
+  "The contents of this report are for research purposes only
+  and not intended for clinical decision making."
+
+12. Report Structure — Reordered (CHANGED)
+---------------------------------------------
+  NEW order matches client:
+    1. Summary (title + key fields + drug lists + MDR/XDR)
+    2. Details heading
+    3.   Lineage (mutations + QC I/II/III)
+    4.   Resistance (mutations/stops/indels + QC I/II/III)
+    5. Genomic variants resistance
+    6. Virulence factors (our addition)
+    7. Pipeline specifications
+    8. Target regions
+    9. Info
+   10. Disclaimer
+   11. Citations
+
+  Removed: INDEX section, SPOLIGOTYPE section (info now in Summary)
+
+
+=========================================================================
+WHAT IS TECHNICALLY DIFFERENT (TB-Profiler vs Client Plugin v3.0)
+=========================================================================
+
+These differences exist because we use TB-Profiler while the client
+uses Plugin v3.0. The format matches but underlying data may differ:
+
+  1. "Average coverage" = TB-Profiler's median_depth (not true average)
+  2. "Number of bases covered" = computed from percent_depth_pass
+  3. Codon integrity (QC II lineage / QC III resistance) = defaults
+     (TB-Profiler doesn't analyze Start/Stop/Internal stop codons)
+  4. Pipeline version shows TB-Profiler version, not "Plugin 3.0"
+  5. Drug resistance calls may differ due to different databases
+  6. Core (v2) ST always shows "n/a" (not computed by TB-Profiler)
+
+V9.1 RESOLVED (previously listed as differences):
+  - Lineage WT/Call now populated via 5-tier resolution (was showing "-")
+  - Lineage Locus now shows locus tags from GFF (was showing gene names)
+
+
+=========================================================================
+HOW TO RUN
+=========================================================================
+
+python3 TB_Script_Final.py <sample_dir> <sample_name> <threads>
+
+Example:
+  python3 TB_Script_Final.py /data/samples/ERR9030248 ERR9030248 8
+
+
+=========================================================================
+CONFIGURATION TO VERIFY
+=========================================================================
+
+  1. TBPROFILER_DB_DIR — must point to TB-Profiler's share/tbprofiler/
+     directory containing tbdb.barcode.bed and tbdb.gff
+  2. SPOTYPING_CMD — path to SpoTyping.py
+  3. conda_base / abr_env_conda — conda paths
+  4. vfdb_annot — path to VFDB annotation CSV
+
+
+=========================================================================
+VERIFICATION CHECKLIST
+=========================================================================
+
+  [ ] Summary has client field names (Core (v2) ST, Lineage_number, etc.)
+  [ ] Drug names show abbreviations: "Isoniazid (INH)"
+  [ ] No Confidence column in drug summary
+  [ ] Predicted lineage shows "1 Indo-Oceanic" format
+  [ ] Unknown drugs show abbreviations: "AMK / CAP / ..."
+  [ ] Multidrug-resistant and Extensively drug-resistant fields present
+  [ ] Lineage table: "1 Indo-Oceanic" format with Notes column
+  [ ] Lineage table: Locus shows locus tags (Rv0524 not gene names)
+  [ ] QC I lineage: "Number of bases covered" + "Average coverage"
+  [ ] QC II lineage: Codon integrity columns present
+  [ ] QC III lineage: Mutation counts (no Antibiotic column)
+  [ ] Resistance split: Mutations + Premature stops + Insertions/deletions
+  [ ] Conclusion column in resistance tables (Resistant/Unknown)
+  [ ] Notes column with "atypical" for uncertain variants
+  [ ] QC I resistance: Same columns as QC I lineage + Antibiotic/Gene
+  [ ] QC II resistance: Includes Unknown mutations/deletions/insertions
+  [ ] QC III resistance: Codon integrity columns present
+  [ ] QC Passed shows "Yes"/"No" not "PASS"/"FAIL"
+  [ ] Info section: General/Lineage/Resistance with Analysis Date
+  [ ] Disclaimer separated
+  [ ] Report order matches client
+
+
+=========================================================================
+BUG FIX HISTORY (ALL VERSIONS)
+=========================================================================
+
+V1: Basic JSON parsing, SpoTyping, categorize_drugs framework
+V2: Fixed median_depth path, spoligotype swap, drug dedup, empty
+    ABRicate, QC warning, confidence ranking (Bugs 1-6)
+V3: Fixed report duplication, VFDB thresholds 95→80, OR logic for
+    other virulence factors (Bugs 7-9)
+V4: Complete report rewrite — builds from scratch, no .txt modification
+V5: H37Rv gene data, genomic variants table, 3 QC tables, INFO section
+V6: SpoTyping python2 path fix, production paths, output_prefix removed
+V7: QC III expanded (unknown mutations), validated on public datasets
+V8: SB Number from SITVIT, lineage WT/Call from barcode BED, full GFF
+    gene annotation, ALL lineage levels, pretomanid, .fastq.gz support
+V8.1: Direct HTTP query to SITVIT as backup for missing XLS files
+V8.2: Offline SIT lookup table (70+ patterns from published SpolDB4 data)
+V9.0: Complete report format rewrite to match client report format:
+      - Summary with client field names and drug abbreviations
+      - QC tables split into 6 (3 lineage + 3 resistance)
+      - Resistance split into mutations/premature stops/indels
+      - Conclusion + Notes columns added
+      - QC Passed Yes/No, client column names throughout
+      - Info section matches client layout
+      - Report section ordering matches client
+V9.1: Data-level fixes for 2 remaining issues:
+      FIX 1 - Lineage WT/Call no longer shows "-":
+        - load_barcode_data() uses aggressive file discovery (10+ paths,
+          conda env glob, home dir, 'find' command fallback)
+        - NEW: load_vcf_alleles() parses TB-Profiler's VCF output as
+          an additional allele source (guaranteed to exist after pipeline)
+        - build_mutations_lineage_section() now has 5-tier allele resolution:
+          1. ref/alt from JSON support entry (multiple field name variants)
+          2. Parse 'change' field (e.g. "615938T>C")
+          3. Barcode BED lookup with ±1 offset tolerance
+          4. VCF alleles from TB-Profiler output (NEW)
+          5. Variant position lookup (dr + other variants)
+        - Also checks 'barcode' key as alternative to 'support' in JSON
+      FIX 2 - Lineage Locus now shows locus tags (Rv0524 not eccB3):
+        - load_full_gene_annotation() extracts BOTH Name AND locus_tag
+          from GFF attributes independently (was only taking one or other)
+        - Returns 4-tuples: (start, stop, gene_name, locus_tag)
+        - find_gene_for_position() returns (name, locus_tag) tuple
+        - Locus column uses locus_tag from GFF for ALL ~4000 H37Rv genes
+          (was limited to 73 genes in H37RV_GENES dictionary)
