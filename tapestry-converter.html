@@ -1786,6 +1786,73 @@ function quantizeImage(imageData, palette, useDithering) {
   return result;
 }
 
+// ===================== THRESHOLD PALETTE (for 2-3 colors) =====================
+function thresholdPalette(imageData, numColors) {
+  const d = imageData.data;
+  const w = imageData.width, h = imageData.height;
+  const totalPx = w * h;
+
+  // Convert to grayscale luminance values
+  const lums = new Float32Array(totalPx);
+  for (let i = 0; i < totalPx; i++) {
+    const idx = i * 4;
+    lums[i] = 0.299 * d[idx] + 0.587 * d[idx+1] + 0.114 * d[idx+2];
+  }
+
+  // Otsu's method to find optimal threshold
+  const histogram = new Int32Array(256);
+  for (let i = 0; i < totalPx; i++) histogram[Math.round(lums[i])]++;
+
+  let bestThresh = 128, bestVariance = 0;
+  let sumTotal = 0, sumB = 0, wB = 0;
+  for (let i = 0; i < 256; i++) sumTotal += i * histogram[i];
+
+  for (let t = 0; t < 256; t++) {
+    wB += histogram[t];
+    if (wB === 0) continue;
+    const wF = totalPx - wB;
+    if (wF === 0) break;
+    sumB += t * histogram[t];
+    const mB = sumB / wB;
+    const mF = (sumTotal - sumB) / wF;
+    const variance = wB * wF * (mB - mF) * (mB - mF);
+    if (variance > bestVariance) { bestVariance = variance; bestThresh = t; }
+  }
+
+  if (numColors === 2) {
+    // Compute average color for dark and light regions
+    const dark = [0, 0, 0, 0], light = [0, 0, 0, 0];
+    for (let i = 0; i < totalPx; i++) {
+      const idx = i * 4;
+      if (lums[i] <= bestThresh) {
+        dark[0] += d[idx]; dark[1] += d[idx+1]; dark[2] += d[idx+2]; dark[3]++;
+      } else {
+        light[0] += d[idx]; light[1] += d[idx+1]; light[2] += d[idx+2]; light[3]++;
+      }
+    }
+    const dN = dark[3] || 1, lN = light[3] || 1;
+    return [
+      [Math.round(dark[0]/dN), Math.round(dark[1]/dN), Math.round(dark[2]/dN)],
+      [Math.round(light[0]/lN), Math.round(light[1]/lN), Math.round(light[2]/lN)]
+    ];
+  }
+
+  // 3 colors: find two thresholds using multi-Otsu
+  const sorted = Array.from(lums).sort((a, b) => a - b);
+  const t1 = sorted[Math.floor(totalPx * 0.33)];
+  const t2 = sorted[Math.floor(totalPx * 0.66)];
+  const bins = [[0,0,0,0], [0,0,0,0], [0,0,0,0]];
+  for (let i = 0; i < totalPx; i++) {
+    const idx = i * 4;
+    const bin = lums[i] <= t1 ? 0 : lums[i] <= t2 ? 1 : 2;
+    bins[bin][0] += d[idx]; bins[bin][1] += d[idx+1]; bins[bin][2] += d[idx+2]; bins[bin][3]++;
+  }
+  return bins.map(b => {
+    const n = b[3] || 1;
+    return [Math.round(b[0]/n), Math.round(b[1]/n), Math.round(b[2]/n)];
+  });
+}
+
 // ===================== GENERATE =====================
 $('generateBtn').addEventListener('click', generate);
 
@@ -1801,7 +1868,11 @@ function generate() {
     for (let i = 0; i < imageData.data.length; i += 4) {
       pixels.push([imageData.data[i], imageData.data[i+1], imageData.data[i+2]]);
     }
-    state.palette = medianCut(pixels, numColors);
+    if (numColors <= 3) {
+      state.palette = thresholdPalette(imageData, numColors);
+    } else {
+      state.palette = medianCut(pixels, numColors);
+    }
   }
 
   const useDithering = $('dithering').checked;
