@@ -1,11 +1,11 @@
 const CACHE_NAME = 'tapestry-v1';
+const BASE = self.registration.scope;
 const ASSETS = [
-  '/',
-  '/tapestry-converter.html',
-  '/manifest.json',
-  '/icon-192.png',
-  '/icon-512.png'
-];
+  'tapestry-converter.html',
+  'manifest.json',
+  'icon-192.png',
+  'icon-512.png'
+].map(f => new URL(f, BASE).href);
 
 self.addEventListener('install', e => {
   e.waitUntil(
