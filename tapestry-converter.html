@@ -99,21 +99,6 @@
   .upload-zone img { max-width: 100%; border-radius: 8px; }
   .upload-zone p { color: #666; font-size: 0.85rem; margin-top: 8px; }
 
-  .crop-btn {
-    width: 100%;
-    margin-top: 8px;
-    padding: 8px;
-    background: #2a2a3a;
-    color: #ffd200;
-    border: 1px dashed #ffd200;
-    border-radius: 8px;
-    font-size: 0.82rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-  .crop-btn:hover { background: #3a3a4a; }
-
   .crop-container {
     position: relative;
     display: none;
@@ -906,7 +891,6 @@
         <p>Click or drag an image here</p>
       </div>
       <input type="file" id="fileInput" accept="image/*" hidden>
-      <button class="crop-btn" id="cropBtn" style="display:none;">Crop Image</button>
       <div class="crop-container" id="cropContainer">
         <img id="cropImg" src="">
         <div class="crop-overlay" id="cropOverlay">
@@ -1091,6 +1075,7 @@
 
   <div class="main-area">
     <div class="edit-toolbar" id="editToolbar">
+      <button class="tool-btn" id="toolCrop" title="Crop image" style="border-color:#ffd20055;color:#ffd200">&#9986; Crop</button>
       <button class="tool-btn" id="toolNone" title="View mode">&#128065; View</button>
       <button class="tool-btn" id="toolPaint" title="Paint single cells">&#9998; Paint</button>
       <button class="tool-btn" id="toolFill" title="Fill connected area">&#9731; Fill Area</button>
@@ -1188,7 +1173,6 @@ function handleFile(file) {
       uploadZone.innerHTML = `<img src="${e.target.result}" alt="uploaded">`;
       uploadZone.classList.add('has-image');
       $('generateBtn').disabled = false;
-      $('cropBtn').style.display = 'block';
       if ($('lockRatio').checked) syncHeight();
     };
     img.src = e.target.result;
@@ -1197,9 +1181,9 @@ function handleFile(file) {
 }
 
 // ===================== CROP TOOL =====================
-$('cropBtn').addEventListener('click', () => {
+$('toolCrop').addEventListener('click', () => {
   if (!state.fullImage) return;
-  showCropper(state.imgDataURL, state.fullImage);
+  showCropper(state.imgDataURL);
 });
 
 function showCropper(src) {
