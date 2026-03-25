@@ -1,0 +1,24 @@
+{
+  "name": "Tapestry Crochet Pattern Converter",
+  "short_name": "Tapestry",
+  "description": "Convert images into tapestry crochet patterns with smart color tools, yarn matching & row guides",
+  "start_url": "/tapestry-converter.html",
+  "display": "standalone",
+  "background_color": "#0f0f0f",
+  "theme_color": "#1a1a2e",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

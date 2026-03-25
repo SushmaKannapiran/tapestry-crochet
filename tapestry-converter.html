@@ -1,0 +1,2572 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Tapestry">
+<meta name="theme-color" content="#1a1a2e">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Tapestry Crochet Pattern Converter</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: #0f0f0f;
+    color: #e0e0e0;
+    min-height: 100vh;
+  }
+
+  header {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    border-bottom: 1px solid #2a2a4a;
+    padding: 20px 32px;
+  }
+
+  header h1 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    background: linear-gradient(135deg, #f7971e, #ffd200);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  header p { font-size: 0.85rem; color: #888; }
+
+  header { display: flex; align-items: center; justify-content: space-between; }
+  .header-left { flex: 1; }
+
+  #installBtn {
+    display: none;
+    padding: 8px 18px;
+    background: linear-gradient(135deg, #f7971e, #ffd200);
+    color: #1a1a2e;
+    border: none;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 0.85rem;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  #installBtn:hover { transform: scale(1.05); box-shadow: 0 4px 16px rgba(247,151,30,0.4); }
+
+  .app {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    min-height: calc(100vh - 80px);
+  }
+
+  .sidebar {
+    background: #161622;
+    border-right: 1px solid #2a2a3a;
+    padding: 24px 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .panel {
+    background: #1e1e30;
+    border: 1px solid #2a2a4a;
+    border-radius: 12px;
+    padding: 16px;
+  }
+
+  .panel h3 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #888;
+    margin-bottom: 12px;
+  }
+
+  .upload-zone {
+    border: 2px dashed #3a3a5a;
+    border-radius: 12px;
+    padding: 32px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .upload-zone:hover { border-color: #f7971e; background: #1a1a2e; }
+  .upload-zone.has-image { padding: 8px; border-style: solid; border-color: #3a3a5a; }
+  .upload-zone img { max-width: 100%; border-radius: 8px; }
+  .upload-zone p { color: #666; font-size: 0.85rem; margin-top: 8px; }
+
+  .control-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .control-row label { font-size: 0.85rem; color: #aaa; }
+  .control-row .value { font-size: 0.85rem; color: #f7971e; font-weight: 600; min-width: 36px; text-align: right; }
+
+  input[type="range"] {
+    width: 100%;
+    margin-top: 4px;
+    accent-color: #f7971e;
+    background: transparent;
+  }
+
+  .btn {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, #f7971e, #ffd200);
+    color: #111;
+  }
+
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(247, 151, 30, 0.3); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  .btn-secondary {
+    background: #2a2a4a;
+    color: #ccc;
+    margin-top: 8px;
+  }
+  .btn-secondary:hover { background: #3a3a5a; }
+
+  .btn-danger {
+    background: #4a2020;
+    color: #f88;
+    margin-top: 8px;
+  }
+  .btn-danger:hover { background: #5a2a2a; }
+
+  .color-palette {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .color-swatch {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.15s;
+    position: relative;
+  }
+
+  .color-swatch:hover { transform: scale(1.15); border-color: #fff; }
+
+  .color-swatch .swatch-label {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.6rem;
+    font-weight: 700;
+  }
+
+  .main-area {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    overflow: auto;
+  }
+
+  .canvas-container {
+    position: relative;
+    background: #1a1a2a;
+    border: 1px solid #2a2a4a;
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    flex: 1;
+    width: 100%;
+    min-height: 400px;
+    overflow: auto;
+  }
+
+  .canvas-container.empty {
+    align-items: center;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .canvas-container.empty p { color: #555; font-size: 1rem; }
+
+  .pattern-wrapper {
+    position: relative;
+    display: inline-block;
+  }
+
+  .pattern-wrapper canvas {
+    display: block;
+    image-rendering: pixelated;
+    max-width: none;
+  }
+
+  .row-sidebar {
+    position: absolute;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .row-sidebar.left-side { right: 100%; padding-right: 3px; }
+  .row-sidebar.right-side { left: 100%; padding-left: 3px; }
+
+  .row-item {
+    display: flex;
+    align-items: center;
+    gap: 1px;
+    font-family: monospace;
+    white-space: nowrap;
+    user-select: none;
+    border-radius: 2px;
+    padding: 0 1px;
+    overflow: hidden;
+    cursor: pointer;
+  }
+
+  .row-item:hover { background: rgba(247, 151, 30, 0.15); }
+
+  .row-item .rnum {
+    color: #999;
+    text-align: right;
+  }
+
+  .row-item .rarrow { color: #f7971e; }
+
+  .row-item .rdone {
+    border-radius: 2px;
+    border: 1px solid #555;
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: transparent;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  .row-item .rdone:hover { border-color: #4a4; }
+  .row-item .rdone.checked { border-color: #4a4; background: #4a4; color: #fff; }
+
+  .row-item.done { opacity: 0.3; }
+  .row-item.done .rnum { text-decoration: line-through; color: #4a4; }
+
+  .row-item.active { background: rgba(247, 151, 30, 0.1); }
+  .row-item.active .rnum { color: #ffd200; }
+
+  .toolbar {
+    display: flex;
+    gap: 12px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .toolbar .btn { width: auto; padding: 10px 20px; }
+
+  .edit-toolbar {
+    display: none;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 12px;
+    padding: 10px 16px;
+    background: #1e1e30;
+    border: 1px solid #2a2a4a;
+    border-radius: 10px;
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .edit-toolbar.show { display: flex; }
+
+  .tool-btn {
+    padding: 6px 14px;
+    border: 1.5px solid #3a3a5a;
+    border-radius: 6px;
+    background: #161622;
+    color: #aaa;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .tool-btn:hover { border-color: #888; color: #ddd; }
+  .tool-btn.active { border-color: #f7971e; color: #f7971e; background: rgba(247,151,30,0.1); }
+
+  .tool-color-pick {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: #aaa;
+  }
+
+  .tool-color-pick input[type="color"] {
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: transparent;
+    padding: 0;
+  }
+
+  .tool-divider {
+    width: 1px;
+    height: 24px;
+    background: #3a3a5a;
+  }
+
+  .pattern-wrapper canvas.tool-active { cursor: crosshair; }
+
+  .recolor-popup {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 340px;
+    right: 0;
+    background: #12121f;
+    border-top: 2px solid #a855f7;
+    padding: 14px 20px;
+    z-index: 95;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.6);
+  }
+
+  .recolor-popup.show { display: block; }
+
+  @media (max-width: 900px) { .recolor-popup { left: 0; } }
+
+  .recolor-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+  }
+
+  .recolor-popup-header .rp-title { font-size: 0.85rem; color: #a855f7; font-weight: 600; }
+  .recolor-popup-header .rp-sub { font-size: 0.72rem; color: #666; }
+
+  .recolor-popup-header .rp-close {
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 2px 6px;
+  }
+
+  .recolor-popup-header .rp-close:hover { color: #fff; }
+
+  .recolor-suggestions {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 6px;
+  }
+
+  .recolor-option {
+    flex-shrink: 0;
+    border: 2px solid #2a2a4a;
+    border-radius: 10px;
+    padding: 8px 12px;
+    background: #1a1a2a;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+    min-width: 80px;
+  }
+
+  .recolor-option:hover { border-color: #888; transform: translateY(-2px); }
+
+  .recolor-option .ro-swatch {
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    margin: 0 auto 6px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+
+  .recolor-option .ro-label {
+    font-size: 0.68rem;
+    color: #888;
+    white-space: nowrap;
+  }
+
+  .row-strip {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 340px;
+    right: 0;
+    background: #12121f;
+    border-top: 2px solid #f7971e;
+    padding: 12px 16px;
+    z-index: 90;
+    box-shadow: 0 -4px 24px rgba(0,0,0,0.6);
+  }
+
+  .row-strip.show { display: block; }
+
+  @media (max-width: 900px) {
+    .row-strip { left: 0; }
+  }
+
+  .row-strip-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+
+  .row-strip-header .strip-title {
+    font-size: 0.85rem;
+    color: #f7971e;
+    font-weight: 600;
+  }
+
+  .row-strip-header .strip-dir {
+    font-size: 0.75rem;
+    color: #888;
+  }
+
+  .row-strip-header .strip-close {
+    background: none;
+    border: none;
+    color: #666;
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 2px 6px;
+  }
+
+  .row-strip-header .strip-close:hover { color: #fff; }
+
+  .row-strip-canvas-wrap {
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .row-strip-canvas-wrap canvas {
+    display: block;
+    image-rendering: pixelated;
+  }
+
+  .yarn-panel {
+    background: #1e1e30;
+    border: 1px solid #2a2a4a;
+    border-radius: 12px;
+    padding: 16px;
+    display: none;
+  }
+
+  .yarn-panel.show { display: block; }
+
+  .yarn-panel h3 {
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: #888;
+    margin-bottom: 12px;
+  }
+
+  .yarn-color-group {
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid #2a2a3a;
+  }
+
+  .yarn-color-group:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+
+  .yarn-color-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .yarn-color-dot {
+    width: 20px;
+    height: 20px;
+    border-radius: 4px;
+    border: 1px solid rgba(255,255,255,0.15);
+    flex-shrink: 0;
+  }
+
+  .yarn-color-header span {
+    font-size: 0.8rem;
+    color: #aaa;
+    font-family: monospace;
+  }
+
+  .yarn-match {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    font-size: 0.78rem;
+    transition: background 0.15s;
+  }
+
+  .yarn-match:hover { background: rgba(255,255,255,0.04); }
+
+  .yarn-match-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    border: 1px solid rgba(255,255,255,0.1);
+    flex-shrink: 0;
+  }
+
+  .yarn-match-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .yarn-match-brand { color: #ccc; font-weight: 600; }
+  .yarn-match-name { color: #888; }
+
+  .yarn-match a {
+    color: #f7971e;
+    text-decoration: none;
+    font-size: 0.72rem;
+    white-space: nowrap;
+  }
+
+  .yarn-match a:hover { text-decoration: underline; }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+
+  .toggle-row label { font-size: 0.85rem; color: #aaa; }
+
+  .toggle {
+    position: relative;
+    width: 44px;
+    height: 24px;
+  }
+
+  .toggle input { opacity: 0; width: 0; height: 0; }
+
+  .toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: #2a2a4a;
+    border-radius: 24px;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+
+  .toggle-slider::before {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    left: 3px;
+    bottom: 3px;
+    background: #888;
+    border-radius: 50%;
+    transition: 0.2s;
+  }
+
+  .toggle input:checked + .toggle-slider { background: #f7971e; }
+  .toggle input:checked + .toggle-slider::before { transform: translateX(20px); background: #111; }
+
+  .zoom-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .zoom-controls button {
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    border: 1px solid #3a3a5a;
+    background: #1e1e30;
+    color: #ccc;
+    font-size: 1.1rem;
+    cursor: pointer;
+  }
+
+  .zoom-controls button:hover { background: #2a2a4a; }
+  .zoom-controls span { font-size: 0.85rem; color: #888; min-width: 50px; text-align: center; }
+
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .modal-overlay.show { display: flex; }
+
+  .modal-content {
+    background: #1e1e30;
+    border: 1px solid #3a3a5a;
+    border-radius: 16px;
+    padding: 28px;
+    min-width: 360px;
+    max-width: 500px;
+  }
+
+  .modal-content h3 { font-size: 1rem; margin-bottom: 16px; color: #e0e0e0; }
+
+  .color-pick-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .color-pick-row label { font-size: 0.85rem; color: #aaa; width: 80px; }
+
+  .color-pick-row input[type="color"] {
+    width: 48px;
+    height: 36px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: transparent;
+  }
+
+  .color-pick-row .hex-display { font-size: 0.85rem; color: #888; font-family: monospace; }
+
+  .modal-buttons { display: flex; gap: 8px; margin-top: 20px; }
+  .modal-buttons .btn { flex: 1; }
+
+  .stitch-count-info {
+    font-size: 0.75rem;
+    color: #666;
+    margin-top: 8px;
+    text-align: center;
+  }
+
+  .custom-colors-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .custom-color-entry {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .custom-color-entry input[type="color"] {
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    background: transparent;
+    padding: 0;
+  }
+
+  .custom-color-entry .remove-color {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: none;
+    background: #4a2020;
+    color: #f88;
+    font-size: 0.65rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  .custom-color-entry .remove-color:hover { background: #6a3030; }
+
+  .bg-upload-zone {
+    border: 2px dashed #3a3a5a;
+    border-radius: 8px;
+    padding: 16px 12px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-top: 8px;
+  }
+
+  .bg-upload-zone:hover { border-color: #f7971e; background: #1a1a2e; }
+  .bg-upload-zone.has-image { padding: 6px; border-style: solid; border-color: #3a3a5a; }
+  .bg-upload-zone img { max-width: 100%; border-radius: 6px; }
+  .bg-upload-zone p { color: #555; font-size: 0.75rem; }
+
+  .theme-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+    margin-top: 8px;
+  }
+
+  .theme-btn {
+    border: 2px solid #2a2a4a;
+    border-radius: 8px;
+    padding: 6px 4px;
+    background: #161622;
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.15s;
+  }
+
+  .theme-btn:hover { border-color: #666; }
+  .theme-btn.active { border-color: #f7971e; box-shadow: 0 0 8px rgba(247,151,30,0.25); }
+
+  .theme-btn .theme-preview {
+    display: flex;
+    height: 14px;
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 4px;
+  }
+
+  .theme-btn .theme-preview span { flex: 1; }
+
+  .theme-btn .theme-name {
+    font-size: 0.65rem;
+    color: #888;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .theme-btn.active .theme-name { color: #f7971e; }
+
+  .progress-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 8px 0;
+  }
+
+  .progress-bar .progress-track {
+    flex: 1;
+    height: 6px;
+    background: #2a2a4a;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .progress-bar .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #f7971e, #ffd200);
+    border-radius: 3px;
+    transition: width 0.3s;
+  }
+
+  .progress-bar .progress-text { font-size: 0.75rem; color: #888; min-width: 80px; }
+
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .sidebar { border-right: none; border-bottom: 1px solid #2a2a3a; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-left">
+    <h1>Tapestry Pattern Converter</h1>
+    <p>Turn photos into crochet-ready charts with full color control</p>
+  </div>
+  <button id="installBtn">Install App</button>
+</header>
+
+<div class="app">
+  <div class="sidebar">
+
+    <div class="panel">
+      <h3>Upload Image</h3>
+      <div class="upload-zone" id="uploadZone">
+        <p>Click or drag an image here</p>
+      </div>
+      <input type="file" id="fileInput" accept="image/*" hidden>
+    </div>
+
+    <div class="panel">
+      <h3>Background Image (optional)</h3>
+      <p style="font-size:0.75rem;color:#666;margin-bottom:8px;">Upload a pattern to replace the photo background</p>
+      <div class="bg-upload-zone" id="bgUploadZone">
+        <p>Click to add background</p>
+      </div>
+      <input type="file" id="bgFileInput" accept="image/*" hidden>
+      <div class="control-row" style="margin-top: 8px;">
+        <label>BG Sensitivity</label>
+        <span class="value" id="bgThresholdVal">200</span>
+      </div>
+      <input type="range" id="bgThreshold" min="100" max="255" value="200">
+      <p style="font-size:0.7rem;color:#555;margin-top:2px;">Higher = replaces more of the photo with pattern</p>
+      <button class="btn btn-danger" id="removeBg" style="display:none;font-size:0.8rem;padding:8px;">Remove Background</button>
+    </div>
+
+    <div class="panel">
+      <h3>Grid Size (stitches)</h3>
+      <div class="control-row">
+        <label>Width</label>
+        <span class="value" id="widthVal">60</span>
+      </div>
+      <input type="range" id="gridWidth" min="20" max="200" value="60">
+      <div class="control-row" style="margin-top: 8px;">
+        <label>Height</label>
+        <span class="value" id="heightVal">60</span>
+      </div>
+      <input type="range" id="gridHeight" min="20" max="200" value="60">
+      <div class="toggle-row" style="margin-top: 8px;">
+        <label>Lock aspect ratio</label>
+        <div class="toggle">
+          <input type="checkbox" id="lockRatio" checked>
+          <span class="toggle-slider"></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h3>Colors</h3>
+      <div class="toggle-row" style="margin-bottom: 10px;">
+        <label>Use custom yarn colors</label>
+        <div class="toggle">
+          <input type="checkbox" id="useCustomColors">
+          <span class="toggle-slider"></span>
+        </div>
+      </div>
+
+      <div id="autoColorSection">
+        <div class="control-row">
+          <label>Number of colors</label>
+          <span class="value" id="colorVal">8</span>
+        </div>
+        <input type="range" id="colorCount" min="2" max="24" value="8">
+      </div>
+
+      <div id="customColorSection" style="display:none;">
+        <p style="font-size:0.75rem;color:#666;margin-bottom:8px;">Pick the yarn colors you actually have:</p>
+        <div class="custom-colors-list" id="customColorsList"></div>
+        <button class="btn btn-secondary" id="addCustomColor" style="font-size:0.8rem;padding:8px;margin-top:6px;">+ Add Color</button>
+      </div>
+
+      <div class="color-palette" id="colorPalette"></div>
+      <p class="stitch-count-info" id="paletteTip">Click a color swatch to replace it</p>
+    </div>
+
+    <div class="panel" id="themePanel" style="display:none;">
+      <h3>Color Themes</h3>
+      <div class="theme-grid" id="themeGrid"></div>
+    </div>
+
+    <div class="panel">
+      <h3>Image Adjustments</h3>
+      <div class="control-row">
+        <label>Brightness</label>
+        <span class="value" id="brightVal">0</span>
+      </div>
+      <input type="range" id="brightness" min="-100" max="100" value="0">
+      <div class="control-row" style="margin-top: 8px;">
+        <label>Contrast</label>
+        <span class="value" id="contrastVal">0</span>
+      </div>
+      <input type="range" id="contrast" min="-100" max="100" value="0">
+      <div class="control-row" style="margin-top: 8px;">
+        <label>Saturation</label>
+        <span class="value" id="satVal">0</span>
+      </div>
+      <input type="range" id="saturation" min="-100" max="100" value="0">
+      <div class="control-row" style="margin-top: 8px;">
+        <label>Edge sharpness</label>
+        <span class="value" id="sharpVal">0</span>
+      </div>
+      <input type="range" id="sharpness" min="0" max="100" value="0">
+    </div>
+
+    <div class="panel">
+      <h3>Options</h3>
+      <div class="toggle-row">
+        <label>Show grid lines</label>
+        <div class="toggle">
+          <input type="checkbox" id="showGrid" checked>
+          <span class="toggle-slider"></span>
+        </div>
+      </div>
+      <div class="toggle-row" style="margin-top: 8px;">
+        <label>Dithering</label>
+        <div class="toggle">
+          <input type="checkbox" id="dithering">
+          <span class="toggle-slider"></span>
+        </div>
+      </div>
+      <div class="toggle-row" style="margin-top: 8px;">
+        <label>Show color numbers in cells</label>
+        <div class="toggle">
+          <input type="checkbox" id="showNumbers">
+          <span class="toggle-slider"></span>
+        </div>
+      </div>
+      <div class="toggle-row" style="margin-top: 8px;">
+        <label>Show row numbers & arrows</label>
+        <div class="toggle">
+          <input type="checkbox" id="showRowInfo" checked>
+          <span class="toggle-slider"></span>
+        </div>
+      </div>
+      <div class="toggle-row" style="margin-top: 8px;">
+        <label>Solid first row (for chain)</label>
+        <div class="toggle">
+          <input type="checkbox" id="solidFirstRow" checked>
+          <span class="toggle-slider"></span>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="generateBtn" disabled>Generate Pattern</button>
+    <button class="btn btn-secondary" id="resetAdjustments">Reset Adjustments</button>
+
+    <div class="panel" id="progressPanel" style="display:none;">
+      <h3>Crochet Progress</h3>
+      <div class="progress-bar">
+        <div class="progress-track"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+        <span class="progress-text" id="progressText">0 / 0 rows</span>
+      </div>
+      <button class="btn btn-danger" id="resetProgress" style="font-size:0.8rem;padding:8px;">Reset Progress</button>
+    </div>
+
+    <div class="yarn-panel" id="yarnPanel">
+      <h3>Yarn Matches</h3>
+      <div id="yarnMatches"></div>
+    </div>
+  </div>
+
+  <div class="main-area">
+    <div class="edit-toolbar" id="editToolbar">
+      <button class="tool-btn" id="toolNone" title="View mode">&#128065; View</button>
+      <button class="tool-btn" id="toolPaint" title="Paint single cells">&#9998; Paint</button>
+      <button class="tool-btn" id="toolFill" title="Fill connected area">&#9731; Fill Area</button>
+      <button class="tool-btn" id="toolSmart" title="Click an area to get smart color suggestions" style="border-color:#a855f755;color:#a855f7">&#10024; Smart Recolor</button>
+      <div class="tool-divider"></div>
+      <div class="tool-color-pick">
+        <span>Paint color:</span>
+        <input type="color" id="paintColor" value="#ffffff">
+      </div>
+      <button class="tool-btn" id="toolUndo" title="Undo last edit">&#8630; Undo</button>
+    </div>
+    <div class="canvas-container empty" id="canvasContainer">
+      <p>Upload an image to get started</p>
+    </div>
+    <div class="zoom-controls" id="zoomControls" style="display:none;">
+      <button id="zoomOut">-</button>
+      <span id="zoomLevel">100%</span>
+      <button id="zoomIn">+</button>
+      <button id="zoomFit" style="width:auto;padding:0 10px;font-size:0.75rem;">Fit</button>
+    </div>
+    <div class="toolbar" id="toolbar" style="display:none;">
+      <button class="btn btn-primary" id="exportPNG">Export as PNG</button>
+      <button class="btn btn-secondary" id="exportPDF">Export as PDF (Print)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Color Replace Modal -->
+<div class="modal-overlay" id="colorModal">
+  <div class="modal-content">
+    <h3>Replace Color</h3>
+    <div class="color-pick-row">
+      <label>Current:</label>
+      <input type="color" id="currentColor" disabled>
+      <span class="hex-display" id="currentHex">#000000</span>
+    </div>
+    <div class="color-pick-row">
+      <label>Replace with:</label>
+      <input type="color" id="newColor">
+      <span class="hex-display" id="newHex">#000000</span>
+    </div>
+    <div class="modal-buttons">
+      <button class="btn btn-secondary" id="cancelReplace">Cancel</button>
+      <button class="btn btn-primary" id="confirmReplace">Replace</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const state = {
+  originalImage: null,
+  bgImage: null,
+  patternData: null,
+  palette: [],
+  customColors: [],
+  gridW: 60,
+  gridH: 60,
+  zoom: 1,
+  selectedColorIdx: -1,
+  aspectRatio: 1,
+  completedRows: new Set(),
+  expandedRow: -1,
+  lastCanvas: null,
+  activeTool: 'none',
+  undoStack: [],
+};
+
+const $ = id => document.getElementById(id);
+
+// ===================== UPLOAD =====================
+const uploadZone = $('uploadZone');
+const fileInput = $('fileInput');
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.style.borderColor = '#f7971e'; });
+uploadZone.addEventListener('dragleave', () => { uploadZone.style.borderColor = '#3a3a5a'; });
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.style.borderColor = '#3a3a5a';
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e => { if (e.target.files.length) handleFile(e.target.files[0]); });
+
+function handleFile(file) {
+  if (!file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      state.originalImage = img;
+      state.aspectRatio = img.width / img.height;
+      uploadZone.innerHTML = `<img src="${e.target.result}" alt="uploaded">`;
+      uploadZone.classList.add('has-image');
+      $('generateBtn').disabled = false;
+      if ($('lockRatio').checked) syncHeight();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+// ===================== BACKGROUND UPLOAD =====================
+const bgUploadZone = $('bgUploadZone');
+const bgFileInput = $('bgFileInput');
+
+bgUploadZone.addEventListener('click', () => bgFileInput.click());
+bgUploadZone.addEventListener('dragover', e => { e.preventDefault(); bgUploadZone.style.borderColor = '#f7971e'; });
+bgUploadZone.addEventListener('dragleave', () => { bgUploadZone.style.borderColor = '#3a3a5a'; });
+bgUploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  bgUploadZone.style.borderColor = '#3a3a5a';
+  if (e.dataTransfer.files.length) handleBgFile(e.dataTransfer.files[0]);
+});
+bgFileInput.addEventListener('change', e => { if (e.target.files.length) handleBgFile(e.target.files[0]); });
+
+function handleBgFile(file) {
+  if (!file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      state.bgImage = img;
+      bgUploadZone.innerHTML = `<img src="${e.target.result}" alt="background">`;
+      bgUploadZone.classList.add('has-image');
+      $('removeBg').style.display = 'block';
+      if (state.originalImage) generate();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+$('removeBg').addEventListener('click', () => {
+  state.bgImage = null;
+  bgUploadZone.innerHTML = '<p>Click to add background</p>';
+  bgUploadZone.classList.remove('has-image');
+  $('removeBg').style.display = 'none';
+  if (state.originalImage) generate();
+});
+
+// ===================== SLIDERS =====================
+function bindSlider(sliderId, displayId, onChange) {
+  const slider = $(sliderId);
+  const display = $(displayId);
+  slider.addEventListener('input', () => {
+    display.textContent = slider.value;
+    if (onChange) onChange(parseInt(slider.value));
+  });
+}
+
+bindSlider('gridWidth', 'widthVal', v => { state.gridW = v; if ($('lockRatio').checked && state.originalImage) syncHeight(); });
+bindSlider('gridHeight', 'heightVal', v => { state.gridH = v; });
+bindSlider('colorCount', 'colorVal');
+bindSlider('brightness', 'brightVal');
+bindSlider('contrast', 'contrastVal');
+bindSlider('saturation', 'satVal');
+bindSlider('sharpness', 'sharpVal');
+bindSlider('bgThreshold', 'bgThresholdVal', () => {
+  if (state.originalImage && state.bgImage) generate();
+});
+
+function syncHeight() {
+  const h = Math.round(state.gridW / state.aspectRatio);
+  const clamped = Math.max(20, Math.min(200, h));
+  $('gridHeight').value = clamped;
+  $('heightVal').textContent = clamped;
+  state.gridH = clamped;
+}
+
+$('lockRatio').addEventListener('change', () => { if ($('lockRatio').checked && state.originalImage) syncHeight(); });
+
+$('resetAdjustments').addEventListener('click', () => {
+  ['brightness', 'contrast', 'saturation', 'sharpness'].forEach(id => { $(id).value = 0; });
+  $('brightVal').textContent = '0';
+  $('contrastVal').textContent = '0';
+  $('satVal').textContent = '0';
+  $('sharpVal').textContent = '0';
+});
+
+// ===================== CUSTOM COLORS =====================
+$('useCustomColors').addEventListener('change', e => {
+  $('autoColorSection').style.display = e.target.checked ? 'none' : 'block';
+  $('customColorSection').style.display = e.target.checked ? 'block' : 'none';
+  if (e.target.checked && state.customColors.length === 0) {
+    state.customColors = ['#000000', '#ffffff', '#c4956a', '#8b4513', '#d2691e', '#1a1a1a'];
+    renderCustomColors();
+  }
+});
+
+function renderCustomColors() {
+  const list = $('customColorsList');
+  list.innerHTML = '';
+  state.customColors.forEach((hex, i) => {
+    const entry = document.createElement('div');
+    entry.className = 'custom-color-entry';
+    const input = document.createElement('input');
+    input.type = 'color';
+    input.value = hex;
+    input.addEventListener('input', e => { state.customColors[i] = e.target.value; });
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'remove-color';
+    removeBtn.textContent = 'x';
+    removeBtn.addEventListener('click', () => {
+      if (state.customColors.length <= 2) return;
+      state.customColors.splice(i, 1);
+      renderCustomColors();
+    });
+    entry.appendChild(input);
+    entry.appendChild(removeBtn);
+    list.appendChild(entry);
+  });
+}
+
+$('addCustomColor').addEventListener('click', () => {
+  if (state.customColors.length >= 24) return;
+  state.customColors.push('#888888');
+  renderCustomColors();
+});
+
+// ===================== IMAGE PROCESSING =====================
+function getProcessedImageData() {
+  const img = state.originalImage;
+  const w = parseInt($('gridWidth').value);
+  const h = parseInt($('gridHeight').value);
+  state.gridW = w;
+  state.gridH = h;
+
+  const srcCanvas = document.createElement('canvas');
+  srcCanvas.width = w;
+  srcCanvas.height = h;
+  const ctx = srcCanvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  if (state.bgImage) {
+    // Draw main image to get pixel data
+    ctx.drawImage(img, 0, 0, w, h);
+    const mainData = ctx.getImageData(0, 0, w, h);
+
+    // Draw background pattern to get its pixel data
+    const bgCanvas = document.createElement('canvas');
+    bgCanvas.width = w;
+    bgCanvas.height = h;
+    const bgCtx = bgCanvas.getContext('2d');
+    bgCtx.imageSmoothingEnabled = true;
+    bgCtx.imageSmoothingQuality = 'high';
+    bgCtx.drawImage(state.bgImage, 0, 0, w, h);
+    const bgData = bgCtx.getImageData(0, 0, w, h);
+
+    // Replace light/white pixels (background) with the pattern
+    const threshold = parseInt($('bgThreshold').value);
+    const md = mainData.data;
+    const bd = bgData.data;
+    for (let i = 0; i < md.length; i += 4) {
+      const brightness = 0.299 * md[i] + 0.587 * md[i+1] + 0.114 * md[i+2];
+      if (brightness > threshold) {
+        md[i] = bd[i];
+        md[i+1] = bd[i+1];
+        md[i+2] = bd[i+2];
+      } else if (brightness > threshold - 30) {
+        // Smooth transition at the edges
+        const blend = (brightness - (threshold - 30)) / 30;
+        md[i] = Math.round(md[i] * (1 - blend) + bd[i] * blend);
+        md[i+1] = Math.round(md[i+1] * (1 - blend) + bd[i+1] * blend);
+        md[i+2] = Math.round(md[i+2] * (1 - blend) + bd[i+2] * blend);
+      }
+    }
+    ctx.putImageData(mainData, 0, 0);
+  } else {
+    ctx.drawImage(img, 0, 0, w, h);
+  }
+
+  const imageData = ctx.getImageData(0, 0, w, h);
+  const data = imageData.data;
+
+  const brightness = parseInt($('brightness').value);
+  const contrast = parseInt($('contrast').value);
+  const saturation = parseInt($('saturation').value);
+
+  if (brightness !== 0 || contrast !== 0 || saturation !== 0) {
+    for (let i = 0; i < data.length; i += 4) {
+      let r = data[i], g = data[i+1], b = data[i+2];
+      r += brightness * 2.55;
+      g += brightness * 2.55;
+      b += brightness * 2.55;
+      const cf = (259 * (contrast + 255)) / (255 * (259 - contrast));
+      r = cf * (r - 128) + 128;
+      g = cf * (g - 128) + 128;
+      b = cf * (b - 128) + 128;
+      const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+      const satF = 1 + saturation / 100;
+      r = gray + satF * (r - gray);
+      g = gray + satF * (g - gray);
+      b = gray + satF * (b - gray);
+      data[i] = Math.max(0, Math.min(255, Math.round(r)));
+      data[i+1] = Math.max(0, Math.min(255, Math.round(g)));
+      data[i+2] = Math.max(0, Math.min(255, Math.round(b)));
+    }
+  }
+
+  const sharpness = parseInt($('sharpness').value);
+  if (sharpness > 0) {
+    const blurred = blurImageData(imageData, w, h);
+    const amount = sharpness / 50;
+    for (let i = 0; i < data.length; i += 4) {
+      data[i] = Math.max(0, Math.min(255, Math.round(data[i] + amount * (data[i] - blurred[i]))));
+      data[i+1] = Math.max(0, Math.min(255, Math.round(data[i+1] + amount * (data[i+1] - blurred[i+1]))));
+      data[i+2] = Math.max(0, Math.min(255, Math.round(data[i+2] + amount * (data[i+2] - blurred[i+2]))));
+    }
+  }
+
+  return imageData;
+}
+
+function blurImageData(imageData, w, h) {
+  const src = imageData.data;
+  const out = new Uint8ClampedArray(src.length);
+  const kernel = [1, 2, 1, 2, 4, 2, 1, 2, 1];
+  const kSum = 16;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      let r = 0, g = 0, b = 0;
+      for (let ky = -1; ky <= 1; ky++) {
+        for (let kx = -1; kx <= 1; kx++) {
+          const px = Math.min(w-1, Math.max(0, x + kx));
+          const py = Math.min(h-1, Math.max(0, y + ky));
+          const idx = (py * w + px) * 4;
+          const kVal = kernel[(ky+1)*3 + (kx+1)];
+          r += src[idx] * kVal;
+          g += src[idx+1] * kVal;
+          b += src[idx+2] * kVal;
+        }
+      }
+      const idx = (y * w + x) * 4;
+      out[idx] = r / kSum;
+      out[idx+1] = g / kSum;
+      out[idx+2] = b / kSum;
+      out[idx+3] = 255;
+    }
+  }
+  return out;
+}
+
+// ===================== COLOR QUANTIZATION =====================
+function medianCut(pixels, numColors) {
+  // Generate more colors than needed, then pick the most distinct ones
+  const targetBuckets = Math.min(pixels.length, numColors * 3);
+  const colorBuckets = [pixels.slice()];
+  while (colorBuckets.length < targetBuckets) {
+    let largestIdx = 0, largestRange = -1;
+    for (let i = 0; i < colorBuckets.length; i++) {
+      const bucket = colorBuckets[i];
+      if (bucket.length < 2) continue;
+      const range = getBucketRange(bucket);
+      if (range.maxRange > largestRange) { largestRange = range.maxRange; largestIdx = i; }
+    }
+    if (largestRange <= 0) break;
+    const bucket = colorBuckets[largestIdx];
+    const range = getBucketRange(bucket);
+    bucket.sort((a, b) => a[range.channel] - b[range.channel]);
+    const mid = Math.floor(bucket.length / 2);
+    colorBuckets.splice(largestIdx, 1, bucket.slice(0, mid), bucket.slice(mid));
+  }
+
+  // Get average color and pixel count for each bucket
+  const candidates = colorBuckets.map(bucket => {
+    let r = 0, g = 0, b = 0;
+    for (const px of bucket) { r += px[0]; g += px[1]; b += px[2]; }
+    const n = bucket.length || 1;
+    return { color: [Math.round(r/n), Math.round(g/n), Math.round(b/n)], count: n };
+  });
+
+  // Sort by pixel count (most used colors first)
+  candidates.sort((a, b) => b.count - a.count);
+
+  // Greedily pick the most distinct colors
+  const minDist = 1500; // minimum perceptual distance between picked colors
+  const picked = [candidates[0].color];
+  for (let i = 1; i < candidates.length && picked.length < numColors; i++) {
+    const c = candidates[i].color;
+    let tooClose = false;
+    for (const p of picked) {
+      const dr = c[0]-p[0], dg = c[1]-p[1], db = c[2]-p[2];
+      if (2*dr*dr + 4*dg*dg + 3*db*db < minDist) {
+        tooClose = true;
+        break;
+      }
+    }
+    if (!tooClose) picked.push(c);
+  }
+
+  // If we still need more colors, relax the distance and fill
+  if (picked.length < numColors) {
+    for (let i = 0; i < candidates.length && picked.length < numColors; i++) {
+      const c = candidates[i].color;
+      let already = false;
+      for (const p of picked) {
+        if (p[0]===c[0] && p[1]===c[1] && p[2]===c[2]) { already = true; break; }
+      }
+      if (!already) picked.push(c);
+    }
+  }
+
+  return picked;
+}
+
+function getBucketRange(bucket) {
+  let rMin = 255, rMax = 0, gMin = 255, gMax = 0, bMin = 255, bMax = 0;
+  for (const px of bucket) {
+    rMin = Math.min(rMin, px[0]); rMax = Math.max(rMax, px[0]);
+    gMin = Math.min(gMin, px[1]); gMax = Math.max(gMax, px[1]);
+    bMin = Math.min(bMin, px[2]); bMax = Math.max(bMax, px[2]);
+  }
+  const rRange = rMax - rMin, gRange = gMax - gMin, bRange = bMax - bMin;
+  const maxRange = Math.max(rRange, gRange, bRange);
+  const channel = maxRange === rRange ? 0 : maxRange === gRange ? 1 : 2;
+  return { maxRange, channel };
+}
+
+function findClosestColor(r, g, b, palette) {
+  let minDist = Infinity, closest = 0;
+  for (let i = 0; i < palette.length; i++) {
+    const dr = r - palette[i][0], dg = g - palette[i][1], db = b - palette[i][2];
+    const dist = 2*dr*dr + 4*dg*dg + 3*db*db;
+    if (dist < minDist) { minDist = dist; closest = i; }
+  }
+  return closest;
+}
+
+function quantizeImage(imageData, palette, useDithering) {
+  const w = imageData.width, h = imageData.height;
+  const data = new Float64Array(imageData.data);
+  const result = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = (y * w + x) * 4;
+      const r = data[idx], g = data[idx+1], b = data[idx+2];
+      const ci = findClosestColor(r, g, b, palette);
+      result[y * w + x] = ci;
+      if (useDithering) {
+        const er = r - palette[ci][0], eg = g - palette[ci][1], eb = b - palette[ci][2];
+        const spread = [[x+1,y,7/16],[x-1,y+1,3/16],[x,y+1,5/16],[x+1,y+1,1/16]];
+        for (const [sx, sy, factor] of spread) {
+          if (sx >= 0 && sx < w && sy >= 0 && sy < h) {
+            const si = (sy * w + sx) * 4;
+            data[si] += er * factor;
+            data[si+1] += eg * factor;
+            data[si+2] += eb * factor;
+          }
+        }
+      }
+    }
+  }
+  return result;
+}
+
+// ===================== GENERATE =====================
+$('generateBtn').addEventListener('click', generate);
+
+function generate() {
+  if (!state.originalImage) return;
+  const imageData = getProcessedImageData();
+
+  if ($('useCustomColors').checked && state.customColors.length >= 2) {
+    state.palette = state.customColors.map(hex => hexToRgb(hex));
+  } else {
+    const numColors = parseInt($('colorCount').value);
+    const pixels = [];
+    for (let i = 0; i < imageData.data.length; i += 4) {
+      pixels.push([imageData.data[i], imageData.data[i+1], imageData.data[i+2]]);
+    }
+    state.palette = medianCut(pixels, numColors);
+  }
+
+  const useDithering = $('dithering').checked;
+  state.patternData = quantizeImage(imageData, state.palette, useDithering);
+  state.completedRows = new Set();
+
+  if ($('solidFirstRow').checked) {
+    makeSolidFirstRow();
+  }
+
+  renderPalette();
+  renderPattern();
+
+  $('canvasContainer').classList.remove('empty');
+  $('zoomControls').style.display = 'flex';
+  $('toolbar').style.display = 'flex';
+  $('editToolbar').classList.add('show');
+  $('progressPanel').style.display = 'block';
+  state.undoStack = [];
+  state.originalPalette = state.palette.map(c => [...c]);
+  state.activeTheme = 'original';
+  updateProgress();
+  renderThemes();
+  renderYarnMatches();
+}
+
+function makeSolidFirstRow() {
+  const w = state.gridW;
+  const h = state.gridH;
+  const lastRow = h - 1; // row 1 is at the bottom = last y index
+  // Find the most common color in the first row
+  const counts = {};
+  for (let x = 0; x < w; x++) {
+    const ci = state.patternData[lastRow * w + x];
+    counts[ci] = (counts[ci] || 0) + 1;
+  }
+  let dominant = 0, maxCount = 0;
+  for (const [ci, count] of Object.entries(counts)) {
+    if (count > maxCount) { maxCount = count; dominant = parseInt(ci); }
+  }
+  // Fill entire first row with the dominant color
+  for (let x = 0; x < w; x++) {
+    state.patternData[lastRow * w + x] = dominant;
+  }
+}
+
+// ===================== PALETTE UI =====================
+function renderPalette() {
+  const container = $('colorPalette');
+  container.innerHTML = '';
+  state.palette.forEach((color, i) => {
+    const swatch = document.createElement('div');
+    swatch.className = 'color-swatch';
+    swatch.style.background = `rgb(${color[0]},${color[1]},${color[2]})`;
+    swatch.title = `Color ${i+1}: ${rgbToHex(color[0], color[1], color[2])}`;
+    const lum = 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2];
+    const label = document.createElement('span');
+    label.className = 'swatch-label';
+    label.style.color = lum > 128 ? '#000' : '#fff';
+    label.textContent = i + 1;
+    swatch.appendChild(label);
+    swatch.addEventListener('click', () => openColorReplace(i));
+    container.appendChild(swatch);
+  });
+}
+
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map(c => c.toString(16).padStart(2, '0')).join('');
+}
+
+function hexToRgb(hex) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)] : [0, 0, 0];
+}
+
+// ===================== COLOR REPLACE MODAL =====================
+function openColorReplace(idx) {
+  state.selectedColorIdx = idx;
+  const color = state.palette[idx];
+  const hex = rgbToHex(color[0], color[1], color[2]);
+  $('currentColor').value = hex;
+  $('currentHex').textContent = hex;
+  $('newColor').value = hex;
+  $('newHex').textContent = hex;
+  $('colorModal').classList.add('show');
+}
+
+$('newColor').addEventListener('input', e => { $('newHex').textContent = e.target.value; });
+$('cancelReplace').addEventListener('click', () => { $('colorModal').classList.remove('show'); });
+
+$('confirmReplace').addEventListener('click', () => {
+  const idx = state.selectedColorIdx;
+  state.palette[idx] = hexToRgb($('newColor').value);
+  renderPalette();
+  renderPattern();
+  renderYarnMatches();
+  $('colorModal').classList.remove('show');
+});
+
+$('colorModal').addEventListener('click', e => {
+  if (e.target === $('colorModal')) $('colorModal').classList.remove('show');
+});
+
+// ===================== RENDER PATTERN =====================
+function renderPattern(forExport) {
+  if (!state.patternData) return;
+
+  const w = state.gridW;
+  const h = state.gridH;
+  const cellSize = Math.max(6, Math.min(20, Math.floor(600 / Math.max(w, h))));
+  const scaledCell = forExport ? 16 : Math.round(cellSize * state.zoom);
+  const expandedY = state.expandedRow;
+
+  const canvas = document.createElement('canvas');
+  const totalW = w * scaledCell;
+  const totalH = h * scaledCell;
+  canvas.width = totalW;
+  canvas.height = totalH;
+
+  const ctx = canvas.getContext('2d');
+  const showGridLines = $('showGrid').checked;
+
+  for (let y = 0; y < h; y++) {
+    const isCompleted = state.completedRows.has(y);
+    const isExpanded = (y === expandedY) && !forExport;
+    const rowNum = h - y;
+    const isOdd = rowNum % 2 === 1;
+
+    for (let x = 0; x < w; x++) {
+      const ci = state.patternData[y * w + x];
+      const color = state.palette[ci];
+
+      if (isCompleted && !forExport) {
+        ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.3)`;
+      } else {
+        ctx.fillStyle = `rgb(${color[0]},${color[1]},${color[2]})`;
+      }
+      ctx.fillRect(x * scaledCell, y * scaledCell, scaledCell, scaledCell);
+
+      if (isCompleted && !forExport) {
+        ctx.fillStyle = 'rgba(40, 180, 80, 0.15)';
+        ctx.fillRect(x * scaledCell, y * scaledCell, scaledCell, scaledCell);
+      }
+
+      if (showGridLines) {
+        ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(x * scaledCell, y * scaledCell, scaledCell, scaledCell);
+      }
+
+      // Show stitch numbers on expanded row (only if cells are big enough)
+      if (isExpanded && scaledCell >= 16) {
+        const stitchNum = isOdd ? (w - x) : (x + 1);
+        const lum = 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2];
+        ctx.fillStyle = lum > 128 ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.5)';
+        ctx.font = `bold ${Math.max(7, scaledCell * 0.45)}px monospace`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(stitchNum, x * scaledCell + scaledCell/2, y * scaledCell + scaledCell/2);
+      }
+    }
+
+    // Highlight border for expanded row
+    if (isExpanded) {
+      ctx.strokeStyle = 'rgba(255, 210, 0, 0.6)';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(0, y * scaledCell, totalW, scaledCell);
+    }
+  }
+
+  if (showGridLines) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x <= w; x += 10) {
+      ctx.beginPath(); ctx.moveTo(x * scaledCell, 0); ctx.lineTo(x * scaledCell, totalH); ctx.stroke();
+    }
+    for (let y = 0; y <= h; y += 10) {
+      ctx.beginPath(); ctx.moveTo(0, y * scaledCell); ctx.lineTo(totalW, y * scaledCell); ctx.stroke();
+    }
+  }
+
+  if (forExport) {
+    state.lastCanvas = canvas;
+    return canvas;
+  }
+
+  const container = $('canvasContainer');
+  while (container.firstChild) container.removeChild(container.firstChild);
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'pattern-wrapper';
+  wrapper.appendChild(canvas);
+
+  const showRowInfo = $('showRowInfo').checked;
+  if (showRowInfo) {
+    const leftCol = document.createElement('div');
+    leftCol.className = 'row-sidebar left-side';
+    const rightCol = document.createElement('div');
+    rightCol.className = 'row-sidebar right-side';
+
+    for (let y = 0; y < h; y++) {
+      const rowNum = h - y;
+      const isOdd = rowNum % 2 === 1;
+      const isCompleted = state.completedRows.has(y);
+      const isActive = (y === expandedY);
+      const arrow = isOdd ? '\u2190' : '\u2192';
+
+      // Scale label sizes to match cell height
+      const fontSize = Math.max(6, Math.min(11, scaledCell - 1));
+      const showLabel = scaledCell >= 6 ? (scaledCell >= 10 || rowNum % 5 === 0 || rowNum === 1 || rowNum === h || isActive) : false;
+      const checkSize = Math.max(6, Math.min(12, scaledCell - 2));
+
+      const makeLabel = (side) => {
+        const el = document.createElement('div');
+        let cls = 'row-item';
+        if (isCompleted) cls += ' done';
+        if (isActive) cls += ' active';
+        el.className = cls;
+        el.style.height = scaledCell + 'px';
+        el.style.fontSize = fontSize + 'px';
+        el.style.lineHeight = scaledCell + 'px';
+
+        if (showLabel) {
+          const numSpan = `<span class="rnum" style="min-width:${fontSize * 2}px;font-size:${fontSize}px">${rowNum}</span>`;
+          const arrowSpan = `<span class="rarrow" style="font-size:${Math.max(6, fontSize)}px">${arrow}</span>`;
+          const doneBtn = `<button class="rdone ${isCompleted ? 'checked' : ''}" style="width:${checkSize}px;height:${checkSize}px;font-size:${Math.max(5, checkSize - 3)}px" title="${isCompleted ? 'Unmark' : 'Mark done'}">&#10003;</button>`;
+
+          if (side === 'left') {
+            el.innerHTML = doneBtn + arrowSpan + numSpan;
+          } else {
+            el.innerHTML = numSpan + arrowSpan + doneBtn;
+          }
+
+          el.querySelector('.rnum').addEventListener('click', () => toggleExpand(y));
+          el.querySelector('.rarrow').addEventListener('click', () => toggleExpand(y));
+          el.querySelector('.rdone').addEventListener('click', (e) => {
+            e.stopPropagation();
+            toggleDone(y);
+          });
+        } else {
+          // Tiny dot for non-labeled rows, still clickable
+          el.innerHTML = `<span style="width:3px;height:3px;border-radius:50%;background:#555;display:inline-block"></span>`;
+          el.addEventListener('click', () => toggleExpand(y));
+        }
+
+        return el;
+      };
+
+      leftCol.appendChild(makeLabel('left'));
+      rightCol.appendChild(makeLabel('right'));
+    }
+
+    wrapper.appendChild(leftCol);
+    wrapper.appendChild(rightCol);
+  }
+
+  // Canvas click handling for paint/fill tools
+  if (state.activeTool !== 'none') {
+    canvas.classList.add('tool-active');
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const clickX = (e.clientX - rect.left) * scaleX;
+      const clickY = (e.clientY - rect.top) * scaleY;
+      const cellX = Math.floor(clickX / scaledCell);
+      const cellY = Math.floor(clickY / scaledCell);
+      if (cellX >= 0 && cellX < w && cellY >= 0 && cellY < h) {
+        handleToolClick(cellX, cellY);
+      }
+    });
+  }
+
+  container.appendChild(wrapper);
+  state.lastCanvas = canvas;
+}
+
+function toggleExpand(y) {
+  if (state.expandedRow === y) {
+    state.expandedRow = -1;
+    $('rowStrip').classList.remove('show');
+  } else {
+    state.expandedRow = y;
+    renderRowStrip(y);
+    $('rowStrip').classList.add('show');
+  }
+  renderPattern();
+}
+
+document.addEventListener('click', (e) => {
+  if (e.target.id === 'stripClose') {
+    state.expandedRow = -1;
+    $('rowStrip').classList.remove('show');
+    renderPattern();
+  }
+});
+
+function renderRowStrip(y) {
+  if (!state.patternData) return;
+  const w = state.gridW;
+  const h = state.gridH;
+  const rowNum = h - y;
+  const isOdd = rowNum % 2 === 1;
+
+  $('stripTitle').textContent = `Row ${rowNum}`;
+  $('stripDir').textContent = isOdd
+    ? `Stitches numbered right \u2190 left (start from right)`
+    : `Stitches numbered left \u2192 right (start from left)`;
+
+  const cellH = 36;
+  const cellW = Math.max(28, Math.min(40, Math.floor(800 / w)));
+  const canvas = $('stripCanvas');
+  canvas.width = w * cellW;
+  canvas.height = cellH;
+  const ctx = canvas.getContext('2d');
+
+  for (let x = 0; x < w; x++) {
+    const ci = state.patternData[y * w + x];
+    const color = state.palette[ci];
+
+    ctx.fillStyle = `rgb(${color[0]},${color[1]},${color[2]})`;
+    ctx.fillRect(x * cellW, 0, cellW, cellH);
+
+    ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+    ctx.lineWidth = 0.5;
+    ctx.strokeRect(x * cellW, 0, cellW, cellH);
+
+    // Stitch number: odd rows R-to-L, even rows L-to-R
+    const stitchNum = isOdd ? (w - x) : (x + 1);
+    const lum = 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2];
+    ctx.fillStyle = lum > 128 ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.7)';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(stitchNum, x * cellW + cellW / 2, cellH / 2);
+  }
+
+  // Thick lines every 10 stitches
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 1.5;
+  for (let x = 0; x <= w; x += 10) {
+    ctx.beginPath();
+    ctx.moveTo(x * cellW, 0);
+    ctx.lineTo(x * cellW, cellH);
+    ctx.stroke();
+  }
+}
+
+function toggleDone(y) {
+  if (state.completedRows.has(y)) {
+    state.completedRows.delete(y);
+  } else {
+    state.completedRows.add(y);
+  }
+  renderPattern();
+  updateProgress();
+}
+
+// ===================== COLOR THEMES =====================
+const COLOR_THEMES = [
+  {
+    name: 'Original',
+    id: 'original',
+    gen: null, // uses the extracted palette as-is
+  },
+  {
+    name: 'B&W',
+    id: 'bw',
+    gen: (n) => {
+      const p = [];
+      for (let i = 0; i < n; i++) {
+        const v = Math.round((i / (n - 1)) * 255);
+        p.push([v, v, v]);
+      }
+      return p;
+    }
+  },
+  {
+    name: 'Sepia',
+    id: 'sepia',
+    gen: (n) => {
+      const base = [[60,30,15],[90,55,30],[130,85,50],[170,120,70],[200,160,110],[225,195,155],[240,220,190],[255,245,225]];
+      return sampleGradient(base, n);
+    }
+  },
+  {
+    name: 'Pop Art',
+    id: 'popart',
+    gen: (n) => {
+      const pool = [[255,0,100],[0,200,255],[255,220,0],[0,0,0],[255,255,255],[255,0,0],[0,180,80],[140,0,255],[255,120,0],[0,255,200]];
+      return pool.slice(0, n);
+    }
+  },
+  {
+    name: 'Pastel',
+    id: 'pastel',
+    gen: (n) => {
+      const pool = [[255,230,230],[230,240,255],[255,245,210],[220,255,230],[245,225,255],[255,220,240],[220,245,245],[255,235,220],[230,230,250],[240,255,240]];
+      return pool.slice(0, n);
+    }
+  },
+  {
+    name: 'Neon',
+    id: 'neon',
+    gen: (n) => {
+      const pool = [[255,0,110],[0,255,130],[0,200,255],[255,255,0],[255,0,255],[0,255,255],[255,100,0],[150,0,255],[0,0,0],[255,255,255]];
+      return pool.slice(0, n);
+    }
+  },
+  {
+    name: 'Earth',
+    id: 'earth',
+    gen: (n) => {
+      const base = [[40,25,15],[85,55,30],[140,95,50],[180,140,80],[200,175,120],[170,150,100],[100,115,60],[60,80,40]];
+      return base.slice(0, n);
+    }
+  },
+  {
+    name: 'Sunset',
+    id: 'sunset',
+    gen: (n) => {
+      const base = [[30,10,40],[100,20,60],[180,40,60],[230,90,50],[250,160,60],[255,210,100],[255,240,180],[255,255,240]];
+      return sampleGradient(base, n);
+    }
+  },
+  {
+    name: 'Ocean',
+    id: 'ocean',
+    gen: (n) => {
+      const base = [[5,15,40],[10,40,90],[20,80,140],[40,140,180],[80,190,210],[150,220,230],[200,240,245],[240,252,255]];
+      return sampleGradient(base, n);
+    }
+  },
+  {
+    name: 'Festive',
+    id: 'festive',
+    gen: (n) => {
+      const pool = [[200,15,50],[230,170,0],[20,100,60],[180,40,120],[255,90,0],[0,80,160],[255,220,50],[120,0,80],[0,150,100],[200,200,200]];
+      return pool.slice(0, n);
+    }
+  },
+  {
+    name: 'Berry',
+    id: 'berry',
+    gen: (n) => {
+      const base = [[30,5,20],[80,15,50],[140,20,70],[180,40,90],[200,80,120],[220,140,160],[240,190,200],[255,235,240]];
+      return sampleGradient(base, n);
+    }
+  },
+  {
+    name: 'Retro',
+    id: 'retro',
+    gen: (n) => {
+      const pool = [[35,35,35],[200,80,60],[230,180,80],[100,140,100],[60,90,120],[180,140,100],[220,200,160],[240,230,210]];
+      return pool.slice(0, n);
+    }
+  },
+];
+
+function sampleGradient(colors, n) {
+  if (n <= colors.length) return colors.slice(0, n);
+  const result = [];
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1) * (colors.length - 1);
+    const lo = Math.floor(t);
+    const hi = Math.min(lo + 1, colors.length - 1);
+    const f = t - lo;
+    result.push([
+      Math.round(colors[lo][0] + f * (colors[hi][0] - colors[lo][0])),
+      Math.round(colors[lo][1] + f * (colors[hi][1] - colors[lo][1])),
+      Math.round(colors[lo][2] + f * (colors[hi][2] - colors[lo][2])),
+    ]);
+  }
+  return result;
+}
+
+function renderThemes() {
+  const grid = $('themeGrid');
+  grid.innerHTML = '';
+  $('themePanel').style.display = 'block';
+  const n = state.palette.length;
+
+  COLOR_THEMES.forEach(theme => {
+    const btn = document.createElement('div');
+    btn.className = 'theme-btn' + (theme.id === (state.activeTheme || 'original') ? ' active' : '');
+
+    const colors = theme.gen ? theme.gen(n) : state.originalPalette || state.palette;
+    const preview = document.createElement('div');
+    preview.className = 'theme-preview';
+    const showColors = colors.slice(0, Math.min(n, 8));
+    showColors.forEach(c => {
+      const s = document.createElement('span');
+      s.style.background = `rgb(${c[0]},${c[1]},${c[2]})`;
+      preview.appendChild(s);
+    });
+
+    const label = document.createElement('div');
+    label.className = 'theme-name';
+    label.textContent = theme.name;
+
+    btn.appendChild(preview);
+    btn.appendChild(label);
+
+    btn.addEventListener('click', () => applyTheme(theme));
+    grid.appendChild(btn);
+  });
+}
+
+function applyTheme(theme) {
+  if (!state.originalPalette) {
+    state.originalPalette = state.palette.map(c => [...c]);
+  }
+  state.activeTheme = theme.id;
+  const n = state.originalPalette.length;
+
+  if (theme.id === 'original') {
+    state.palette = state.originalPalette.map(c => [...c]);
+  } else {
+    const themePalette = theme.gen(n);
+    // Map by brightness: sort original by brightness, sort theme by brightness, then reassign
+    const origWithIdx = state.originalPalette.map((c, i) => ({
+      brightness: 0.299*c[0] + 0.587*c[1] + 0.114*c[2],
+      idx: i
+    }));
+    origWithIdx.sort((a, b) => a.brightness - b.brightness);
+
+    const themeByBright = themePalette.slice().sort((a, b) => {
+      return (0.299*a[0]+0.587*a[1]+0.114*a[2]) - (0.299*b[0]+0.587*b[1]+0.114*b[2]);
+    });
+
+    const newPalette = new Array(n);
+    origWithIdx.forEach((o, i) => {
+      newPalette[o.idx] = themeByBright[Math.min(i, themeByBright.length - 1)];
+    });
+    state.palette = newPalette;
+  }
+
+  renderPalette();
+  renderPattern();
+  renderThemes();
+  renderYarnMatches();
+}
+
+// ===================== YARN MATCHING =====================
+const YARN_DB = [
+  // Vardhman
+  {b:'Vardhman',n:'White',r:[255,255,255],u:'https://www.amazon.in/s?k=vardhman+yarn+white'},
+  {b:'Vardhman',n:'Black',r:[20,20,20],u:'https://www.amazon.in/s?k=vardhman+yarn+black'},
+  {b:'Vardhman',n:'Red',r:[200,30,30],u:'https://www.amazon.in/s?k=vardhman+yarn+red'},
+  {b:'Vardhman',n:'Maroon',r:[128,0,32],u:'https://www.amazon.in/s?k=vardhman+yarn+maroon'},
+  {b:'Vardhman',n:'Dark Red',r:[160,20,20],u:'https://www.amazon.in/s?k=vardhman+yarn+dark+red'},
+  {b:'Vardhman',n:'Pink',r:[255,150,170],u:'https://www.amazon.in/s?k=vardhman+yarn+pink'},
+  {b:'Vardhman',n:'Baby Pink',r:[255,190,200],u:'https://www.amazon.in/s?k=vardhman+yarn+baby+pink'},
+  {b:'Vardhman',n:'Hot Pink',r:[230,50,100],u:'https://www.amazon.in/s?k=vardhman+yarn+hot+pink'},
+  {b:'Vardhman',n:'Magenta',r:[190,30,90],u:'https://www.amazon.in/s?k=vardhman+yarn+magenta'},
+  {b:'Vardhman',n:'Orange',r:[240,130,40],u:'https://www.amazon.in/s?k=vardhman+yarn+orange'},
+  {b:'Vardhman',n:'Yellow',r:[255,220,50],u:'https://www.amazon.in/s?k=vardhman+yarn+yellow'},
+  {b:'Vardhman',n:'Lemon',r:[255,240,100],u:'https://www.amazon.in/s?k=vardhman+yarn+lemon+yellow'},
+  {b:'Vardhman',n:'Golden',r:[210,170,60],u:'https://www.amazon.in/s?k=vardhman+yarn+golden'},
+  {b:'Vardhman',n:'Cream',r:[255,240,220],u:'https://www.amazon.in/s?k=vardhman+yarn+cream'},
+  {b:'Vardhman',n:'Skin / Peach',r:[240,185,140],u:'https://www.amazon.in/s?k=vardhman+yarn+skin+peach'},
+  {b:'Vardhman',n:'Brown',r:[130,70,35],u:'https://www.amazon.in/s?k=vardhman+yarn+brown'},
+  {b:'Vardhman',n:'Dark Brown',r:[80,40,20],u:'https://www.amazon.in/s?k=vardhman+yarn+dark+brown'},
+  {b:'Vardhman',n:'Coffee',r:[110,70,45],u:'https://www.amazon.in/s?k=vardhman+yarn+coffee+brown'},
+  {b:'Vardhman',n:'Beige',r:[220,200,170],u:'https://www.amazon.in/s?k=vardhman+yarn+beige'},
+  {b:'Vardhman',n:'Grey',r:[150,150,150],u:'https://www.amazon.in/s?k=vardhman+yarn+grey'},
+  {b:'Vardhman',n:'Dark Grey',r:[80,80,80],u:'https://www.amazon.in/s?k=vardhman+yarn+dark+grey'},
+  {b:'Vardhman',n:'Light Blue',r:[130,180,230],u:'https://www.amazon.in/s?k=vardhman+yarn+light+blue'},
+  {b:'Vardhman',n:'Royal Blue',r:[40,70,180],u:'https://www.amazon.in/s?k=vardhman+yarn+royal+blue'},
+  {b:'Vardhman',n:'Navy Blue',r:[20,30,80],u:'https://www.amazon.in/s?k=vardhman+yarn+navy+blue'},
+  {b:'Vardhman',n:'Sky Blue',r:[100,170,230],u:'https://www.amazon.in/s?k=vardhman+yarn+sky+blue'},
+  {b:'Vardhman',n:'Green',r:[40,150,60],u:'https://www.amazon.in/s?k=vardhman+yarn+green'},
+  {b:'Vardhman',n:'Dark Green',r:[20,80,30],u:'https://www.amazon.in/s?k=vardhman+yarn+dark+green'},
+  {b:'Vardhman',n:'Olive',r:[120,130,50],u:'https://www.amazon.in/s?k=vardhman+yarn+olive+green'},
+  {b:'Vardhman',n:'Sea Green',r:[60,180,140],u:'https://www.amazon.in/s?k=vardhman+yarn+sea+green'},
+  {b:'Vardhman',n:'Purple',r:[100,40,140],u:'https://www.amazon.in/s?k=vardhman+yarn+purple'},
+  {b:'Vardhman',n:'Lavender',r:[180,160,210],u:'https://www.amazon.in/s?k=vardhman+yarn+lavender'},
+
+  // Ganga Acrowools
+  {b:'Ganga',n:'Snow White',r:[255,252,250],u:'https://www.amazon.in/s?k=ganga+acrowools+white'},
+  {b:'Ganga',n:'Jet Black',r:[15,15,15],u:'https://www.amazon.in/s?k=ganga+acrowools+black'},
+  {b:'Ganga',n:'Cherry Red',r:[190,25,25],u:'https://www.amazon.in/s?k=ganga+acrowools+red'},
+  {b:'Ganga',n:'Rose Pink',r:[240,140,150],u:'https://www.amazon.in/s?k=ganga+acrowools+pink'},
+  {b:'Ganga',n:'Blush',r:[230,180,170],u:'https://www.amazon.in/s?k=ganga+acrowools+blush'},
+  {b:'Ganga',n:'Rust',r:[180,70,30],u:'https://www.amazon.in/s?k=ganga+acrowools+rust'},
+  {b:'Ganga',n:'Mustard',r:[210,170,50],u:'https://www.amazon.in/s?k=ganga+acrowools+mustard'},
+  {b:'Ganga',n:'Ochre',r:[195,150,50],u:'https://www.amazon.in/s?k=ganga+acrowools+ochre'},
+  {b:'Ganga',n:'Camel',r:[195,160,110],u:'https://www.amazon.in/s?k=ganga+acrowools+camel'},
+  {b:'Ganga',n:'Chocolate',r:[90,45,20],u:'https://www.amazon.in/s?k=ganga+acrowools+chocolate+brown'},
+  {b:'Ganga',n:'Steel Grey',r:[120,120,125],u:'https://www.amazon.in/s?k=ganga+acrowools+grey'},
+  {b:'Ganga',n:'Teal',r:[0,120,120],u:'https://www.amazon.in/s?k=ganga+acrowools+teal'},
+  {b:'Ganga',n:'Bottle Green',r:[10,70,35],u:'https://www.amazon.in/s?k=ganga+acrowools+bottle+green'},
+  {b:'Ganga',n:'Indigo',r:[40,40,120],u:'https://www.amazon.in/s?k=ganga+acrowools+indigo'},
+  {b:'Ganga',n:'Wine',r:[115,20,45],u:'https://www.amazon.in/s?k=ganga+acrowools+wine'},
+  {b:'Ganga',n:'Peach',r:[255,200,170],u:'https://www.amazon.in/s?k=ganga+acrowools+peach'},
+
+  // Anchor (Coats India)
+  {b:'Anchor',n:'White',r:[252,252,250],u:'https://www.amazon.in/s?k=anchor+knitting+yarn+white'},
+  {b:'Anchor',n:'Black',r:[10,10,10],u:'https://www.amazon.in/s?k=anchor+knitting+yarn+black'},
+  {b:'Anchor',n:'Red',r:[210,35,35],u:'https://www.amazon.in/s?k=anchor+knitting+yarn+red'},
+  {b:'Anchor',n:'Flesh / Skin',r:[235,185,150],u:'https://www.amazon.in/s?k=anchor+knitting+yarn+skin+flesh'},
+  {b:'Anchor',n:'Brown',r:[140,80,40],u:'https://www.amazon.in/s?k=anchor+knitting+yarn+brown'},
+  {b:'Anchor',n:'Beige',r:[225,205,175],u:'https://www.amazon.in/s?k=anchor+knitting+yarn+beige'},
+  {b:'Anchor',n:'Emerald',r:[20,140,60],u:'https://www.amazon.in/s?k=anchor+knitting+yarn+emerald+green'},
+  {b:'Anchor',n:'Royal Blue',r:[35,65,175],u:'https://www.amazon.in/s?k=anchor+knitting+yarn+royal+blue'},
+  {b:'Anchor',n:'Yellow',r:[250,215,45],u:'https://www.amazon.in/s?k=anchor+knitting+yarn+yellow'},
+  {b:'Anchor',n:'Orange',r:[235,120,35],u:'https://www.amazon.in/s?k=anchor+knitting+yarn+orange'},
+  {b:'Anchor',n:'Pink',r:[240,130,160],u:'https://www.amazon.in/s?k=anchor+knitting+yarn+pink'},
+  {b:'Anchor',n:'Grey',r:[140,140,140],u:'https://www.amazon.in/s?k=anchor+knitting+yarn+grey'},
+
+  // Hobby Store
+  {b:'Hobby Store',n:'White',r:[255,255,255],u:'https://www.amazon.in/s?k=hobby+store+yarn+white'},
+  {b:'Hobby Store',n:'Black',r:[15,15,15],u:'https://www.amazon.in/s?k=hobby+store+yarn+black'},
+  {b:'Hobby Store',n:'Red',r:[205,30,30],u:'https://www.amazon.in/s?k=hobby+store+yarn+red'},
+  {b:'Hobby Store',n:'Burgundy',r:[120,15,35],u:'https://www.amazon.in/s?k=hobby+store+yarn+burgundy'},
+  {b:'Hobby Store',n:'Coral',r:[240,120,100],u:'https://www.amazon.in/s?k=hobby+store+yarn+coral'},
+  {b:'Hobby Store',n:'Peach',r:[250,195,160],u:'https://www.amazon.in/s?k=hobby+store+yarn+peach'},
+  {b:'Hobby Store',n:'Skin Tone',r:[230,180,140],u:'https://www.amazon.in/s?k=hobby+store+yarn+skin+tone'},
+  {b:'Hobby Store',n:'Brown',r:[120,65,30],u:'https://www.amazon.in/s?k=hobby+store+yarn+brown'},
+  {b:'Hobby Store',n:'Tan',r:[200,170,120],u:'https://www.amazon.in/s?k=hobby+store+yarn+tan'},
+  {b:'Hobby Store',n:'Cream',r:[250,240,215],u:'https://www.amazon.in/s?k=hobby+store+yarn+cream'},
+  {b:'Hobby Store',n:'Yellow',r:[255,220,50],u:'https://www.amazon.in/s?k=hobby+store+yarn+yellow'},
+  {b:'Hobby Store',n:'Orange',r:[240,130,30],u:'https://www.amazon.in/s?k=hobby+store+yarn+orange'},
+  {b:'Hobby Store',n:'Blue',r:[50,100,190],u:'https://www.amazon.in/s?k=hobby+store+yarn+blue'},
+  {b:'Hobby Store',n:'Navy',r:[20,25,70],u:'https://www.amazon.in/s?k=hobby+store+yarn+navy'},
+  {b:'Hobby Store',n:'Green',r:[35,140,55],u:'https://www.amazon.in/s?k=hobby+store+yarn+green'},
+  {b:'Hobby Store',n:'Olive',r:[110,120,45],u:'https://www.amazon.in/s?k=hobby+store+yarn+olive'},
+  {b:'Hobby Store',n:'Grey',r:[145,145,145],u:'https://www.amazon.in/s?k=hobby+store+yarn+grey'},
+  {b:'Hobby Store',n:'Purple',r:[95,35,130],u:'https://www.amazon.in/s?k=hobby+store+yarn+purple'},
+  {b:'Hobby Store',n:'Pink',r:[245,140,170],u:'https://www.amazon.in/s?k=hobby+store+yarn+pink'},
+
+  // Original Knit
+  {b:'Original Knit',n:'Snow White',r:[255,253,250],u:'https://www.amazon.in/s?k=original+knit+yarn+white'},
+  {b:'Original Knit',n:'Pitch Black',r:[12,12,12],u:'https://www.amazon.in/s?k=original+knit+yarn+black'},
+  {b:'Original Knit',n:'Bright Red',r:[215,30,30],u:'https://www.amazon.in/s?k=original+knit+yarn+red'},
+  {b:'Original Knit',n:'Cherry',r:[170,20,40],u:'https://www.amazon.in/s?k=original+knit+yarn+cherry'},
+  {b:'Original Knit',n:'Blush Pink',r:[245,195,195],u:'https://www.amazon.in/s?k=original+knit+yarn+pink'},
+  {b:'Original Knit',n:'Salmon',r:[240,150,120],u:'https://www.amazon.in/s?k=original+knit+yarn+salmon'},
+  {b:'Original Knit',n:'Skin',r:[225,175,135],u:'https://www.amazon.in/s?k=original+knit+yarn+skin'},
+  {b:'Original Knit',n:'Chocolate',r:[85,40,18],u:'https://www.amazon.in/s?k=original+knit+yarn+chocolate'},
+  {b:'Original Knit',n:'Caramel',r:[180,120,60],u:'https://www.amazon.in/s?k=original+knit+yarn+caramel'},
+  {b:'Original Knit',n:'Off White',r:[245,238,225],u:'https://www.amazon.in/s?k=original+knit+yarn+off+white'},
+  {b:'Original Knit',n:'Sunflower',r:[250,210,40],u:'https://www.amazon.in/s?k=original+knit+yarn+yellow'},
+  {b:'Original Knit',n:'Tangerine',r:[240,120,30],u:'https://www.amazon.in/s?k=original+knit+yarn+orange'},
+  {b:'Original Knit',n:'Forest Green',r:[25,90,35],u:'https://www.amazon.in/s?k=original+knit+yarn+green'},
+  {b:'Original Knit',n:'Sage',r:[150,170,120],u:'https://www.amazon.in/s?k=original+knit+yarn+sage'},
+  {b:'Original Knit',n:'Sky',r:[120,180,235],u:'https://www.amazon.in/s?k=original+knit+yarn+sky+blue'},
+  {b:'Original Knit',n:'Denim',r:[60,80,130],u:'https://www.amazon.in/s?k=original+knit+yarn+denim+blue'},
+  {b:'Original Knit',n:'Ash Grey',r:[160,160,160],u:'https://www.amazon.in/s?k=original+knit+yarn+grey'},
+  {b:'Original Knit',n:'Charcoal',r:[55,55,55],u:'https://www.amazon.in/s?k=original+knit+yarn+charcoal'},
+  {b:'Original Knit',n:'Plum',r:[110,30,80],u:'https://www.amazon.in/s?k=original+knit+yarn+plum'},
+  {b:'Original Knit',n:'Lilac',r:[190,170,220],u:'https://www.amazon.in/s?k=original+knit+yarn+lilac'},
+];
+
+function yarnColorDist(c1, c2) {
+  const dr = c1[0]-c2[0], dg = c1[1]-c2[1], db = c1[2]-c2[2];
+  return 2*dr*dr + 4*dg*dg + 3*db*db;
+}
+
+function findYarnMatches(rgb, count) {
+  const scored = YARN_DB.map(y => ({ ...y, dist: yarnColorDist(rgb, y.r) }));
+  scored.sort((a, b) => a.dist - b.dist);
+  // Pick top matches but avoid duplicate brands in top results
+  const results = [];
+  const seenBrands = new Set();
+  for (const match of scored) {
+    if (results.length >= count) break;
+    if (results.length < 2 || !seenBrands.has(match.b)) {
+      results.push(match);
+      seenBrands.add(match.b);
+    }
+  }
+  return results;
+}
+
+function renderYarnMatches() {
+  if (!state.palette.length) return;
+  const container = $('yarnMatches');
+  container.innerHTML = '';
+  $('yarnPanel').classList.add('show');
+
+  state.palette.forEach((color, i) => {
+    const group = document.createElement('div');
+    group.className = 'yarn-color-group';
+
+    const header = document.createElement('div');
+    header.className = 'yarn-color-header';
+    header.innerHTML = `<div class="yarn-color-dot" style="background:rgb(${color[0]},${color[1]},${color[2]})"></div><span>Color ${i+1} &mdash; ${rgbToHex(color[0],color[1],color[2])}</span>`;
+    group.appendChild(header);
+
+    const matches = findYarnMatches(color, 4);
+    matches.forEach(m => {
+      const row = document.createElement('div');
+      row.className = 'yarn-match';
+      row.innerHTML = `<div class="yarn-match-dot" style="background:rgb(${m.r[0]},${m.r[1]},${m.r[2]})"></div>` +
+        `<div class="yarn-match-info"><span class="yarn-match-brand">${m.b}</span> <span class="yarn-match-name">${m.n}</span></div>` +
+        `<a href="${m.u}" target="_blank">Buy &rarr;</a>`;
+      group.appendChild(row);
+    });
+
+    container.appendChild(group);
+  });
+}
+
+// ===================== EDITING TOOLS =====================
+function setActiveTool(tool) {
+  state.activeTool = tool;
+  ['toolNone', 'toolPaint', 'toolFill', 'toolSmart'].forEach(id => $(id).classList.remove('active'));
+  if (tool === 'none') $('toolNone').classList.add('active');
+  if (tool === 'paint') $('toolPaint').classList.add('active');
+  if (tool === 'fill') $('toolFill').classList.add('active');
+  if (tool === 'smart') $('toolSmart').classList.add('active');
+  if (tool !== 'smart') {
+    const popup = document.getElementById('recolorPopup');
+    if (popup) popup.classList.remove('show');
+  }
+  renderPattern();
+}
+
+$('toolNone').addEventListener('click', () => setActiveTool('none'));
+$('toolPaint').addEventListener('click', () => setActiveTool('paint'));
+$('toolFill').addEventListener('click', () => setActiveTool('fill'));
+$('toolSmart').addEventListener('click', () => setActiveTool('smart'));
+
+$('toolUndo').addEventListener('click', () => {
+  if (state.undoStack.length === 0) return;
+  state.patternData = state.undoStack.pop();
+  renderPattern();
+});
+
+function handleToolClick(x, y) {
+  if (!state.patternData) return;
+  const w = state.gridW;
+
+  if (state.activeTool === 'smart') {
+    const ci = state.patternData[y * w + x];
+    const currentColor = state.palette[ci];
+    showSmartRecolor(x, y, ci, currentColor);
+    return;
+  }
+
+  const paintHex = $('paintColor').value;
+  const paintRgb = hexToRgb(paintHex);
+
+  let paintIdx = findExactPaletteIndex(paintRgb);
+  if (paintIdx === -1) {
+    state.palette.push(paintRgb);
+    paintIdx = state.palette.length - 1;
+    renderPalette();
+  }
+
+  state.undoStack.push(new Uint8Array(state.patternData));
+  if (state.undoStack.length > 30) state.undoStack.shift();
+
+  if (state.activeTool === 'paint') {
+    state.patternData[y * w + x] = paintIdx;
+  } else if (state.activeTool === 'fill') {
+    const targetIdx = state.patternData[y * w + x];
+    if (targetIdx === paintIdx) return;
+    floodFill(x, y, targetIdx, paintIdx);
+  }
+
+  renderPattern();
+}
+
+function findExactPaletteIndex(rgb) {
+  for (let i = 0; i < state.palette.length; i++) {
+    if (state.palette[i][0] === rgb[0] && state.palette[i][1] === rgb[1] && state.palette[i][2] === rgb[2]) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function floodFill(startX, startY, targetIdx, fillIdx) {
+  const w = state.gridW;
+  const h = state.gridH;
+  const data = state.patternData;
+  const stack = [[startX, startY]];
+  const visited = new Set();
+
+  while (stack.length > 0) {
+    const [x, y] = stack.pop();
+    const key = y * w + x;
+    if (x < 0 || x >= w || y < 0 || y >= h) continue;
+    if (visited.has(key)) continue;
+    if (data[key] !== targetIdx) continue;
+
+    visited.add(key);
+    data[key] = fillIdx;
+
+    stack.push([x + 1, y]);
+    stack.push([x - 1, y]);
+    stack.push([x, y + 1]);
+    stack.push([x, y - 1]);
+  }
+}
+
+// ===================== SMART RECOLOR =====================
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  let h, s, l = (max + min) / 2;
+  if (max === min) { h = s = 0; }
+  else {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break;
+      case g: h = ((b - r) / d + 2) / 6; break;
+      case b: h = ((r - g) / d + 4) / 6; break;
+    }
+  }
+  return [h * 360, s * 100, l * 100];
+}
+
+function hslToRgb(h, s, l) {
+  h /= 360; s /= 100; l /= 100;
+  let r, g, b;
+  if (s === 0) { r = g = b = l; }
+  else {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1; if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+
+function generateSmartColors(currentRgb) {
+  const [h, s, l] = rgbToHsl(currentRgb[0], currentRgb[1], currentRgb[2]);
+  const suggestions = [];
+
+  // Complementary
+  suggestions.push({ label: 'Complement', color: hslToRgb((h + 180) % 360, s, l) });
+
+  // Triadic
+  suggestions.push({ label: 'Triadic 1', color: hslToRgb((h + 120) % 360, s, l) });
+  suggestions.push({ label: 'Triadic 2', color: hslToRgb((h + 240) % 360, s, l) });
+
+  // Analogous warm & cool
+  suggestions.push({ label: 'Warm shift', color: hslToRgb((h + 30) % 360, Math.min(100, s + 10), l) });
+  suggestions.push({ label: 'Cool shift', color: hslToRgb((h - 30 + 360) % 360, Math.min(100, s + 10), l) });
+
+  // Vibrant pop
+  suggestions.push({ label: 'Pop vibrant', color: hslToRgb(h, Math.min(100, s + 40), Math.min(60, l + 10)) });
+
+  // Pastel version
+  suggestions.push({ label: 'Pastel', color: hslToRgb(h, Math.max(20, s - 30), Math.min(85, l + 25)) });
+
+  // Deep/dark version
+  suggestions.push({ label: 'Deep', color: hslToRgb(h, Math.min(100, s + 20), Math.max(20, l - 25)) });
+
+  // Funky unexpected colors
+  suggestions.push({ label: 'Funky pink', color: hslToRgb(330, 80, 55) });
+  suggestions.push({ label: 'Funky teal', color: hslToRgb(175, 70, 45) });
+  suggestions.push({ label: 'Electric blue', color: hslToRgb(210, 90, 55) });
+  suggestions.push({ label: 'Coral', color: hslToRgb(16, 85, 60) });
+  suggestions.push({ label: 'Mint', color: hslToRgb(150, 50, 70) });
+  suggestions.push({ label: 'Gold', color: hslToRgb(45, 85, 55) });
+  suggestions.push({ label: 'Lavender', color: hslToRgb(270, 50, 70) });
+
+  // Filter out colors too similar to the current one
+  return suggestions.filter(s => {
+    const dr = s.color[0]-currentRgb[0], dg = s.color[1]-currentRgb[1], db = s.color[2]-currentRgb[2];
+    return (2*dr*dr + 4*dg*dg + 3*db*db) > 2000;
+  });
+}
+
+function showSmartRecolor(clickX, clickY, colorIdx, currentColor) {
+  state.smartRecolorTarget = { x: clickX, y: clickY, idx: colorIdx };
+  const suggestions = generateSmartColors(currentColor);
+
+  let popup = document.getElementById('recolorPopup');
+  if (!popup) {
+    popup = document.createElement('div');
+    popup.className = 'recolor-popup';
+    popup.id = 'recolorPopup';
+    document.body.appendChild(popup);
+  }
+
+  const hex = rgbToHex(currentColor[0], currentColor[1], currentColor[2]);
+  popup.innerHTML = `
+    <div class="recolor-popup-header">
+      <div>
+        <span class="rp-title">Smart Recolor</span>
+        <span class="rp-sub"> &mdash; Click a color to fill this area (current: ${hex})</span>
+      </div>
+      <button class="rp-close" onclick="document.getElementById('recolorPopup').classList.remove('show')">&times;</button>
+    </div>
+    <div class="recolor-suggestions" id="recolorSuggestions"></div>
+  `;
+
+  const container = popup.querySelector('#recolorSuggestions');
+  suggestions.forEach(s => {
+    const opt = document.createElement('div');
+    opt.className = 'recolor-option';
+    opt.innerHTML = `
+      <div class="ro-swatch" style="background:rgb(${s.color[0]},${s.color[1]},${s.color[2]})"></div>
+      <div class="ro-label">${s.label}</div>
+    `;
+    opt.addEventListener('click', () => {
+      applySmartRecolor(s.color);
+    });
+    container.appendChild(opt);
+  });
+
+  popup.classList.add('show');
+}
+
+function applySmartRecolor(newRgb) {
+  const target = state.smartRecolorTarget;
+  if (!target) return;
+
+  let newIdx = findExactPaletteIndex(newRgb);
+  if (newIdx === -1) {
+    state.palette.push(newRgb);
+    newIdx = state.palette.length - 1;
+  }
+
+  state.undoStack.push(new Uint8Array(state.patternData));
+  if (state.undoStack.length > 30) state.undoStack.shift();
+
+  floodFill(target.x, target.y, target.idx, newIdx);
+  renderPalette();
+  renderPattern();
+  renderYarnMatches();
+
+  document.getElementById('recolorPopup').classList.remove('show');
+}
+
+function updateProgress() {
+  const total = state.gridH;
+  const done = state.completedRows.size;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  $('progressFill').style.width = pct + '%';
+  $('progressText').textContent = `${done} / ${total} rows (${pct}%)`;
+}
+
+$('resetProgress').addEventListener('click', () => {
+  state.completedRows = new Set();
+  renderPattern();
+  updateProgress();
+});
+
+// ===================== ZOOM =====================
+$('zoomIn').addEventListener('click', () => { state.zoom = Math.min(5, state.zoom + 0.25); updateZoom(); });
+$('zoomOut').addEventListener('click', () => { state.zoom = Math.max(0.25, state.zoom - 0.25); updateZoom(); });
+$('zoomFit').addEventListener('click', () => { state.zoom = 1; updateZoom(); });
+
+function updateZoom() {
+  $('zoomLevel').textContent = Math.round(state.zoom * 100) + '%';
+  renderPattern();
+}
+
+// ===================== TOGGLE RE-RENDERS =====================
+$('showGrid').addEventListener('change', renderPattern);
+$('showNumbers').addEventListener('change', renderPattern);
+$('showRowInfo').addEventListener('change', renderPattern);
+
+// ===================== EXPORT =====================
+$('exportPNG').addEventListener('click', () => {
+  if (!state.patternData) return;
+  const canvas = renderPattern(true);
+  const link = document.createElement('a');
+  link.download = 'tapestry-pattern.png';
+  link.href = canvas.toDataURL('image/png');
+  link.click();
+  renderPattern();
+});
+
+$('exportPDF').addEventListener('click', () => {
+  if (!state.patternData) return;
+  const canvas = renderPattern(true);
+  const imgData = canvas.toDataURL('image/png');
+  const w = state.gridW;
+  const h = state.gridH;
+
+  // Generate row-by-row stitch data
+  let rowGuideHTML = '';
+  for (let rowNum = 1; rowNum <= h; rowNum++) {
+    const y = h - rowNum;
+    const isOdd = rowNum % 2 === 1;
+    const dir = isOdd ? '\u2190 (Right to Left)' : '\u2192 (Left to Right)';
+    const arrow = isOdd ? '\u2190' : '\u2192';
+
+    let cells = '';
+    for (let x = 0; x < w; x++) {
+      const ci = state.patternData[y * w + x];
+      const color = state.palette[ci];
+      const stitchNum = isOdd ? (w - x) : (x + 1);
+      const lum = 0.299*color[0]+0.587*color[1]+0.114*color[2];
+      const tc = lum > 128 ? '#000' : '#fff';
+      cells += `<td style="background:rgb(${color[0]},${color[1]},${color[2]});color:${tc};text-align:center;padding:2px 0;font-size:9px;font-weight:bold;min-width:18px">${stitchNum}</td>`;
+    }
+
+    rowGuideHTML += `
+      <div class="row-section">
+        <div class="row-header">Row ${rowNum} ${arrow} <span class="row-dir">${dir}</span></div>
+        <div class="row-table-wrap"><table class="row-table"><tr>${cells}</tr></table></div>
+      </div>`;
+  }
+
+  const win = window.open('', '_blank');
+  win.document.write(`
+    <html><head><title>Tapestry Pattern - Full Guide</title>
+    <style>
+      body { margin: 0; font-family: 'Segoe UI', sans-serif; padding: 20px; color: #333; }
+      h1 { font-size: 20px; margin-bottom: 2px; }
+      .info { color: #666; font-size: 13px; margin-bottom: 12px; }
+      .chart-img { max-width: 100%; border: 1px solid #ddd; border-radius: 4px; }
+      .palette { display: flex; gap: 6px; flex-wrap: wrap; margin: 10px 0; }
+      .p-swatch { width: 26px; height: 26px; border-radius: 4px; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: bold; }
+      .legend { font-size: 11px; margin: 4px 0 10px; color: #555; }
+      .direction-note { font-size: 12px; color: #666; margin: 8px 0 16px; padding: 8px 12px; background: #f5f5f5; border-radius: 6px; }
+      h2 { font-size: 16px; margin: 24px 0 8px; page-break-before: always; }
+      h2:first-of-type { page-break-before: avoid; }
+      .row-section { margin-bottom: 8px; break-inside: avoid; }
+      .row-header { font-size: 12px; font-weight: 700; color: #333; margin-bottom: 3px; }
+      .row-dir { font-weight: 400; color: #888; font-size: 11px; }
+      .row-table-wrap { overflow-x: auto; }
+      .row-table { border-collapse: collapse; }
+      .row-table td { border: 1px solid rgba(0,0,0,0.15); width: 18px; height: 20px; }
+      .checkbox { display: inline-block; width: 12px; height: 12px; border: 1.5px solid #aaa; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+      @media print {
+        body { padding: 10px; font-size: 11px; }
+        .row-section { margin-bottom: 6px; }
+        .no-print { display: none; }
+      }
+    </style></head><body>
+
+    <h1>Tapestry Crochet Pattern</h1>
+    <p class="info">${w} x ${h} stitches &bull; ${state.palette.length} colors</p>
+
+    <div class="palette">
+      ${state.palette.map((c, i) => {
+        const lum = 0.299*c[0]+0.587*c[1]+0.114*c[2];
+        const tc = lum > 128 ? '#000' : '#fff';
+        return `<div class="p-swatch" style="background:rgb(${c[0]},${c[1]},${c[2]});color:${tc}">${i+1}</div>`;
+      }).join('')}
+    </div>
+    <div class="legend">
+      ${state.palette.map((c, i) => `<span style="margin-right:10px;">${i+1}: ${rgbToHex(c[0],c[1],c[2])}</span>`).join('')}
+    </div>
+
+    <div class="direction-note">
+      <strong>Directions:</strong> Odd rows (1, 3, 5...) = Right \u2190 Left &nbsp;|&nbsp; Even rows (2, 4, 6...) = Left \u2192 Right<br>
+      Row 1 starts at the <strong>bottom</strong>. Each row has a <span class="checkbox"></span> checkbox to mark progress.
+    </div>
+
+    <img class="chart-img" src="${imgData}">
+
+    <h2>Row-by-Row Stitch Guide</h2>
+    <p style="font-size:11px;color:#888;margin-bottom:12px;">Each cell shows the stitch number. The color is the yarn color for that stitch.</p>
+
+    ${rowGuideHTML}
+
+    <script>
+      document.querySelectorAll('.row-header').forEach(el => {
+        const cb = document.createElement('span');
+        cb.className = 'checkbox';
+        cb.style.cursor = 'pointer';
+        cb.addEventListener('click', function() {
+          this.style.background = this.style.background ? '' : '#4a4';
+          this.style.borderColor = this.style.background ? '#4a4' : '#aaa';
+        });
+        el.insertBefore(cb, el.firstChild);
+      });
+    <\/script>
+    </body></html>
+  `);
+  renderPattern();
+});
+</script>
+
+<div class="row-strip" id="rowStrip">
+  <div class="row-strip-header">
+    <span class="strip-title" id="stripTitle">Row 1</span>
+    <span class="strip-dir" id="stripDir">Stitch 1 starts from right</span>
+    <button class="strip-close" id="stripClose">&times;</button>
+  </div>
+  <div class="row-strip-canvas-wrap">
+    <canvas id="stripCanvas"></canvas>
+  </div>
+</div>
+
+<script>
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+}
+
+let deferredPrompt;
+const installBtn = document.getElementById('installBtn');
+
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  deferredPrompt = e;
+  installBtn.style.display = 'block';
+});
+
+installBtn.addEventListener('click', async () => {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  const result = await deferredPrompt.userChoice;
+  if (result.outcome === 'accepted') {
+    installBtn.style.display = 'none';
+  }
+  deferredPrompt = null;
+});
+
+window.addEventListener('appinstalled', () => {
+  installBtn.style.display = 'none';
+});
+</script>
+</body>
+</html>
