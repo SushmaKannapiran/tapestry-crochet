@@ -239,6 +239,7 @@
   }
 
   .color-swatch:hover { transform: scale(1.15); border-color: #fff; }
+  .color-swatch.highlighted { border-color: #ffd200; transform: scale(1.2); box-shadow: 0 0 8px #ffd200aa; }
 
   .color-swatch .swatch-label {
     position: absolute;
@@ -970,7 +971,7 @@
       </div>
 
       <div class="color-palette" id="colorPalette"></div>
-      <p class="stitch-count-info" id="paletteTip">Click a color swatch to replace it</p>
+      <p class="stitch-count-info" id="paletteTip">Click to highlight in pattern · Double-click to change color</p>
     </div>
 
     <div class="panel" id="themePanel" style="display:none;">
@@ -1141,6 +1142,7 @@ const state = {
   lastCanvas: null,
   activeTool: 'none',
   undoStack: [],
+  highlightColor: null,
 };
 
 const $ = id => document.getElementById(id);
@@ -1855,15 +1857,25 @@ function renderPalette() {
   state.palette.forEach((color, i) => {
     const swatch = document.createElement('div');
     swatch.className = 'color-swatch';
+    if (state.highlightColor === i) swatch.classList.add('highlighted');
     swatch.style.background = `rgb(${color[0]},${color[1]},${color[2]})`;
-    swatch.title = `Color ${i+1}: ${rgbToHex(color[0], color[1], color[2])}`;
+    swatch.title = `Click to highlight · Double-click to change color`;
     const lum = 0.299 * color[0] + 0.587 * color[1] + 0.114 * color[2];
     const label = document.createElement('span');
     label.className = 'swatch-label';
     label.style.color = lum > 128 ? '#000' : '#fff';
     label.textContent = i + 1;
     swatch.appendChild(label);
-    swatch.addEventListener('click', () => openColorReplace(i));
+    swatch.addEventListener('click', () => {
+      state.highlightColor = state.highlightColor === i ? null : i;
+      renderPalette();
+      renderPattern();
+    });
+    swatch.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      state.highlightColor = null;
+      openColorReplace(i);
+    });
     container.appendChild(swatch);
   });
 }
@@ -1934,12 +1946,23 @@ function renderPattern(forExport) {
       const ci = state.patternData[y * w + x];
       const color = state.palette[ci];
 
+      const isHighlighted = state.highlightColor != null && !forExport;
+      const isThisColor = ci === state.highlightColor;
+
       if (isCompleted && !forExport) {
         ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.3)`;
+      } else if (isHighlighted && !isThisColor) {
+        ctx.fillStyle = `rgba(${color[0]},${color[1]},${color[2]},0.12)`;
       } else {
         ctx.fillStyle = `rgb(${color[0]},${color[1]},${color[2]})`;
       }
       ctx.fillRect(x * scaledCell, y * scaledCell, scaledCell, scaledCell);
+
+      if (isHighlighted && isThisColor && !forExport) {
+        ctx.strokeStyle = '#ffd200';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(x * scaledCell + 0.5, y * scaledCell + 0.5, scaledCell - 1, scaledCell - 1);
+      }
 
       if (isCompleted && !forExport) {
         ctx.fillStyle = 'rgba(40, 180, 80, 0.15)';
