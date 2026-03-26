@@ -99,6 +99,27 @@
   .upload-zone img { max-width: 100%; border-radius: 8px; }
   .upload-zone p { color: #666; font-size: 0.85rem; margin-top: 8px; }
 
+  .project-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 8px;
+    background: #1e1e30;
+    border: 1px solid #2a2a4a;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.78rem;
+    transition: all 0.15s;
+  }
+  .project-item:hover { border-color: #f7971e; }
+  .project-item.active { border-color: #ffd200; background: #252540; }
+  .project-item .proj-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .project-item .proj-progress { font-size: 0.65rem; color: #888; }
+  .project-item .proj-delete {
+    background: none; border: none; color: #666; cursor: pointer; font-size: 0.85rem; padding: 0 2px;
+  }
+  .project-item .proj-delete:hover { color: #f55; }
+
   .crop-container {
     position: relative;
     display: none;
@@ -886,7 +907,17 @@
 <div class="app">
   <div class="sidebar">
 
-    <div class="panel">
+    <div class="panel" id="projectPanel">
+      <h3>Projects</h3>
+      <div id="projectList" style="display:flex;flex-direction:column;gap:4px;margin-bottom:8px;max-height:150px;overflow-y:auto;"></div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-primary" id="newProjectBtn" style="flex:1;font-size:0.75rem;padding:6px;">+ New Project</button>
+        <button class="btn" id="importPatternBtn" style="flex:1;font-size:0.75rem;padding:6px;background:#2a2a3a;color:#ffd200;border:1px dashed #ffd200;">Import Pattern</button>
+      </div>
+      <input type="file" id="importPatternInput" accept="image/*" hidden>
+    </div>
+
+    <div class="panel" id="uploadPanel">
       <h3>Upload Image</h3>
       <div class="upload-zone" id="uploadZone">
         <p>Click or drag an image here</p>
@@ -3170,6 +3201,268 @@ $('exportPDF').addEventListener('click', () => {
   `);
   renderPattern();
 });
+
+// ===================== PROJECT MANAGER =====================
+const PROJECTS_KEY = 'tapestry_projects';
+const ACTIVE_KEY = 'tapestry_active_project';
+
+function getProjects() {
+  try { return JSON.parse(localStorage.getItem(PROJECTS_KEY)) || []; }
+  catch { return []; }
+}
+
+function saveProjects(projects) {
+  localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
+}
+
+function saveCurrentProject() {
+  if (!state.currentProjectId) return;
+  const projects = getProjects();
+  const idx = projects.findIndex(p => p.id === state.currentProjectId);
+  if (idx < 0) return;
+
+  const proj = projects[idx];
+  proj.updatedAt = Date.now();
+  if (state.patternData) {
+    proj.patternData = Array.from(state.patternData);
+    proj.palette = state.palette;
+    proj.gridW = state.gridW;
+    proj.gridH = state.gridH;
+    proj.completedRows = Array.from(state.completedRows);
+  }
+  if (state.isImportedPattern && state.importedImageData) {
+    proj.importedImageData = state.importedImageData;
+    proj.isImported = true;
+  }
+  saveProjects(projects);
+}
+
+function createProject(name, isImported) {
+  const projects = getProjects();
+  const id = 'proj_' + Date.now();
+  projects.push({
+    id, name, createdAt: Date.now(), updatedAt: Date.now(),
+    isImported: !!isImported,
+    patternData: null, palette: null, gridW: 0, gridH: 0,
+    completedRows: [], importedImageData: null
+  });
+  saveProjects(projects);
+  state.currentProjectId = id;
+  localStorage.setItem(ACTIVE_KEY, id);
+  renderProjectList();
+  return id;
+}
+
+function loadProject(id) {
+  const projects = getProjects();
+  const proj = projects.find(p => p.id === id);
+  if (!proj) return;
+
+  state.currentProjectId = id;
+  state.completedRows = new Set(proj.completedRows || []);
+  state.highlightColor = null;
+  localStorage.setItem(ACTIVE_KEY, id);
+
+  if (proj.isImported && proj.importedImageData) {
+    state.isImportedPattern = true;
+    state.importedImageData = proj.importedImageData;
+    const img = new Image();
+    img.onload = () => {
+      importPatternFromImage(img, proj);
+    };
+    img.src = proj.importedImageData;
+  } else if (proj.patternData && proj.palette) {
+    state.isImportedPattern = false;
+    state.patternData = new Uint8Array(proj.patternData);
+    state.palette = proj.palette;
+    state.gridW = proj.gridW;
+    state.gridH = proj.gridH;
+    renderPalette();
+    renderPattern();
+    $('canvasContainer').classList.remove('empty');
+    $('zoomControls').style.display = 'flex';
+    $('toolbar').style.display = 'flex';
+    $('editToolbar').classList.add('show');
+    $('progressPanel').style.display = 'block';
+    updateProgress();
+    setTimeout(fitZoom, 50);
+  }
+  renderProjectList();
+}
+
+function deleteProject(id) {
+  let projects = getProjects();
+  projects = projects.filter(p => p.id !== id);
+  saveProjects(projects);
+  if (state.currentProjectId === id) {
+    state.currentProjectId = null;
+    state.patternData = null;
+  }
+  renderProjectList();
+}
+
+function renderProjectList() {
+  const list = $('projectList');
+  const projects = getProjects();
+  list.innerHTML = '';
+  if (projects.length === 0) {
+    list.innerHTML = '<p style="font-size:0.72rem;color:#555;text-align:center;padding:4px;">No projects yet</p>';
+    return;
+  }
+  projects.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+  projects.forEach(p => {
+    const item = document.createElement('div');
+    item.className = 'project-item' + (p.id === state.currentProjectId ? ' active' : '');
+    const completedCount = (p.completedRows || []).length;
+    const totalRows = p.gridH || 0;
+    const pct = totalRows ? Math.round(completedCount / totalRows * 100) : 0;
+    item.innerHTML =
+      `<span class="proj-name">${p.name}</span>` +
+      `<span class="proj-progress">${totalRows ? pct + '%' : (p.isImported ? 'imported' : 'new')}</span>` +
+      `<button class="proj-delete" title="Delete">&times;</button>`;
+    item.querySelector('.proj-name').addEventListener('click', () => loadProject(p.id));
+    item.querySelector('.proj-delete').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (confirm('Delete "' + p.name + '"?')) deleteProject(p.id);
+    });
+    list.appendChild(item);
+  });
+}
+
+// ===================== IMPORT PATTERN =====================
+$('importPatternBtn').addEventListener('click', () => $('importPatternInput').click());
+$('importPatternInput').addEventListener('change', e => {
+  if (!e.target.files.length) return;
+  const file = e.target.files[0];
+  if (!file.type.startsWith('image/')) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      const name = prompt('Project name:', file.name.replace(/\.[^.]+$/, '')) || 'Imported Pattern';
+      const id = createProject(name, true);
+      state.isImportedPattern = true;
+      state.importedImageData = ev.target.result;
+      importPatternFromImage(img);
+      saveCurrentProject();
+    };
+    img.src = ev.target.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+function importPatternFromImage(img, existingProj) {
+  const w = img.width;
+  const h = img.height;
+  state.gridW = w;
+  state.gridH = h;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(img, 0, 0);
+  const data = ctx.getImageData(0, 0, w, h).data;
+
+  // Extract unique colors and build pattern
+  const colorMap = new Map();
+  const patternData = new Uint8Array(w * h);
+  for (let i = 0; i < w * h; i++) {
+    const r = data[i*4], g = data[i*4+1], b = data[i*4+2];
+    const key = (r << 16) | (g << 8) | b;
+    if (!colorMap.has(key)) colorMap.set(key, { idx: colorMap.size, color: [r, g, b] });
+    patternData[i] = colorMap.get(key).idx;
+  }
+
+  // If too many colors (>50), quantize down
+  let palette;
+  if (colorMap.size > 50) {
+    const pixels = [];
+    for (let i = 0; i < data.length; i += 4) pixels.push([data[i], data[i+1], data[i+2]]);
+    palette = medianCut(pixels, Math.min(colorMap.size, 30));
+    const imgData = ctx.getImageData(0, 0, w, h);
+    state.patternData = quantizeImage(imgData, palette, false);
+  } else {
+    palette = Array.from(colorMap.values()).map(v => v.color);
+    state.patternData = patternData;
+  }
+
+  state.palette = palette;
+  if (existingProj && existingProj.completedRows) {
+    state.completedRows = new Set(existingProj.completedRows);
+  } else {
+    state.completedRows = new Set();
+  }
+
+  // Hide converter-specific panels for imported patterns
+  $('uploadPanel').style.display = 'none';
+
+  renderPalette();
+  renderPattern();
+  $('canvasContainer').classList.remove('empty');
+  $('zoomControls').style.display = 'flex';
+  $('toolbar').style.display = 'flex';
+  $('editToolbar').classList.add('show');
+  $('progressPanel').style.display = 'block';
+  state.undoStack = [];
+  updateProgress();
+  renderYarnMatches();
+  setTimeout(fitZoom, 50);
+}
+
+// New Project button
+$('newProjectBtn').addEventListener('click', () => {
+  const name = prompt('Project name:', 'My Pattern ' + (getProjects().length + 1));
+  if (!name) return;
+  createProject(name, false);
+  state.isImportedPattern = false;
+  $('uploadPanel').style.display = 'block';
+  state.patternData = null;
+  state.palette = [];
+  $('canvasContainer').classList.add('empty');
+});
+
+// Auto-save progress when rows are toggled
+const origToggleRow = window.toggleRow;
+const origUpdateProgress = updateProgress;
+
+// Save on row toggle
+document.addEventListener('click', e => {
+  if (e.target.classList.contains('rdone') || e.target.closest('.rdone')) {
+    setTimeout(saveCurrentProject, 100);
+  }
+});
+
+// Save on pattern generate
+const origGenerate = generate;
+window.generateAndSave = function() {
+  origGenerate();
+  if (!state.currentProjectId) {
+    const name = prompt('Project name:', 'My Pattern ' + (getProjects().length + 1)) || 'My Pattern';
+    createProject(name, false);
+  }
+  setTimeout(saveCurrentProject, 100);
+};
+$('generateBtn').removeEventListener('click', generate);
+$('generateBtn').addEventListener('click', () => {
+  generate();
+  if (!state.currentProjectId) {
+    const name = 'Project ' + (getProjects().length + 1);
+    createProject(name, false);
+  }
+  setTimeout(saveCurrentProject, 200);
+});
+
+// Load projects on startup
+renderProjectList();
+const lastActive = localStorage.getItem(ACTIVE_KEY);
+if (lastActive) {
+  const projects = getProjects();
+  if (projects.find(p => p.id === lastActive)) {
+    setTimeout(() => loadProject(lastActive), 100);
+  }
+}
+
 </script>
 
 <div class="row-strip" id="rowStrip">
