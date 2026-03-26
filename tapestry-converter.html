@@ -917,7 +917,7 @@
       <input type="file" id="importPatternInput" accept="image/*" hidden>
     </div>
 
-    <div class="panel" id="uploadPanel">
+    <div class="panel converter-panel" id="uploadPanel">
       <h3>Upload Image</h3>
       <div class="upload-zone" id="uploadZone">
         <p>Click or drag an image here</p>
@@ -940,7 +940,7 @@
       </div>
     </div>
 
-    <div class="panel">
+    <div class="panel converter-panel">
       <h3>Background Image (optional)</h3>
       <p style="font-size:0.75rem;color:#666;margin-bottom:8px;">Upload a pattern to replace the photo background</p>
       <div class="bg-upload-zone" id="bgUploadZone">
@@ -956,7 +956,7 @@
       <button class="btn btn-danger" id="removeBg" style="display:none;font-size:0.8rem;padding:8px;">Remove Background</button>
     </div>
 
-    <div class="panel">
+    <div class="panel converter-panel">
       <h3>Grid Size (stitches)</h3>
       <div class="control-row">
         <label>Width</label>
@@ -977,7 +977,7 @@
       </div>
     </div>
 
-    <div class="panel">
+    <div class="panel converter-panel">
       <h3>Colors</h3>
       <div class="toggle-row" style="margin-bottom: 10px;">
         <label>Use custom yarn colors</label>
@@ -1005,12 +1005,12 @@
       <p class="stitch-count-info" id="paletteTip">Click to highlight in pattern · Double-click to change color</p>
     </div>
 
-    <div class="panel" id="themePanel" style="display:none;">
+    <div class="panel converter-panel" id="themePanel" style="display:none;">
       <h3>Color Themes</h3>
       <div class="theme-grid" id="themeGrid"></div>
     </div>
 
-    <div class="panel">
+    <div class="panel converter-panel">
       <h3>Image Adjustments</h3>
       <div class="control-row">
         <label>Brightness</label>
@@ -1034,7 +1034,7 @@
       <input type="range" id="sharpness" min="0" max="100" value="0">
     </div>
 
-    <div class="panel">
+    <div class="panel converter-panel">
       <h3>Options</h3>
       <div class="toggle-row">
         <label>Show grid lines</label>
@@ -1087,8 +1087,8 @@
       </div>
     </div>
 
-    <button class="btn btn-primary" id="generateBtn" disabled>Generate Pattern</button>
-    <button class="btn btn-secondary" id="resetAdjustments">Reset Adjustments</button>
+    <button class="btn btn-primary converter-panel" id="generateBtn" disabled>Generate Pattern</button>
+    <button class="btn btn-secondary converter-panel" id="resetAdjustments">Reset Adjustments</button>
 
     <div class="panel" id="progressPanel" style="display:none;">
       <h3>Crochet Progress</h3>
@@ -3063,11 +3063,23 @@ $('zoomOut').addEventListener('click', () => { state.zoom = Math.max(0.1, state.
 $('zoomFit').addEventListener('click', fitZoom);
 
 function fitZoom() {
-  if (!state.patternData) return;
   const container = document.querySelector('.main');
   if (!container) return;
   const availW = container.clientWidth - 80;
   const availH = window.innerHeight - 180;
+
+  if (state.isImportedPattern && state.importedImg) {
+    const imgW = state.importedImg.width;
+    const imgH = state.importedImg.height;
+    const fitW = availW / imgW;
+    const fitH = availH / imgH;
+    state.zoom = Math.min(fitW, fitH, 2);
+    state.zoom = Math.max(0.1, Math.round(state.zoom * 20) / 20);
+    updateZoom();
+    return;
+  }
+
+  if (!state.patternData) return;
   const cellSize = Math.max(6, Math.min(20, Math.floor(600 / Math.max(state.gridW, state.gridH))));
   const patternW = state.gridW * cellSize;
   const patternH = state.gridH * cellSize;
@@ -3080,7 +3092,8 @@ function fitZoom() {
 
 function updateZoom() {
   $('zoomLevel').textContent = Math.round(state.zoom * 100) + '%';
-  renderPattern();
+  if (state.isImportedPattern) renderImportedPattern();
+  else renderPattern();
 }
 
 // ===================== TOGGLE RE-RENDERS =====================
@@ -3232,7 +3245,9 @@ function saveCurrentProject() {
   }
   if (state.isImportedPattern && state.importedImageData) {
     proj.importedImageData = state.importedImageData;
+    proj.importedRows = state.importedRows;
     proj.isImported = true;
+    proj.gridH = state.importedRows;
   }
   saveProjects(projects);
 }
@@ -3266,13 +3281,17 @@ function loadProject(id) {
   if (proj.isImported && proj.importedImageData) {
     state.isImportedPattern = true;
     state.importedImageData = proj.importedImageData;
+    state.importedRows = proj.importedRows || 50;
     const img = new Image();
     img.onload = () => {
-      importPatternFromImage(img, proj);
+      loadImportedPattern(img, proj.importedRows || 50, proj);
     };
     img.src = proj.importedImageData;
   } else if (proj.patternData && proj.palette) {
     state.isImportedPattern = false;
+    state.importedImg = null;
+    document.querySelectorAll('.converter-panel').forEach(el => el.style.display = '');
+    $('yarnPanel').style.display = '';
     state.patternData = new Uint8Array(proj.patternData);
     state.palette = proj.palette;
     state.gridW = proj.gridW;
@@ -3340,10 +3359,13 @@ $('importPatternInput').addEventListener('change', e => {
     const img = new Image();
     img.onload = () => {
       const name = prompt('Project name:', file.name.replace(/\.[^.]+$/, '')) || 'Imported Pattern';
+      const rowStr = prompt('How many rows does this pattern have?', '50');
+      const numRows = parseInt(rowStr) || 50;
       const id = createProject(name, true);
       state.isImportedPattern = true;
       state.importedImageData = ev.target.result;
-      importPatternFromImage(img);
+      state.importedRows = numRows;
+      loadImportedPattern(img, numRows);
       saveCurrentProject();
     };
     img.src = ev.target.result;
@@ -3351,63 +3373,181 @@ $('importPatternInput').addEventListener('change', e => {
   reader.readAsDataURL(file);
 });
 
-function importPatternFromImage(img, existingProj) {
-  const w = img.width;
-  const h = img.height;
-  state.gridW = w;
-  state.gridH = h;
+function loadImportedPattern(img, numRows, existingProj) {
+  state.isImportedPattern = true;
+  state.importedImg = img;
+  state.importedRows = numRows;
+  state.gridH = numRows;
+  state.gridW = 1;
+  state.patternData = null;
+  state.palette = [];
 
-  const canvas = document.createElement('canvas');
-  canvas.width = w;
-  canvas.height = h;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(img, 0, 0);
-  const data = ctx.getImageData(0, 0, w, h).data;
-
-  // Extract unique colors and build pattern
-  const colorMap = new Map();
-  const patternData = new Uint8Array(w * h);
-  for (let i = 0; i < w * h; i++) {
-    const r = data[i*4], g = data[i*4+1], b = data[i*4+2];
-    const key = (r << 16) | (g << 8) | b;
-    if (!colorMap.has(key)) colorMap.set(key, { idx: colorMap.size, color: [r, g, b] });
-    patternData[i] = colorMap.get(key).idx;
-  }
-
-  // If too many colors (>50), quantize down
-  let palette;
-  if (colorMap.size > 50) {
-    const pixels = [];
-    for (let i = 0; i < data.length; i += 4) pixels.push([data[i], data[i+1], data[i+2]]);
-    palette = medianCut(pixels, Math.min(colorMap.size, 30));
-    const imgData = ctx.getImageData(0, 0, w, h);
-    state.patternData = quantizeImage(imgData, palette, false);
-  } else {
-    palette = Array.from(colorMap.values()).map(v => v.color);
-    state.patternData = patternData;
-  }
-
-  state.palette = palette;
   if (existingProj && existingProj.completedRows) {
     state.completedRows = new Set(existingProj.completedRows);
-  } else {
+  } else if (!existingProj) {
     state.completedRows = new Set();
   }
 
-  // Hide converter-specific panels for imported patterns
-  $('uploadPanel').style.display = 'none';
-
-  renderPalette();
-  renderPattern();
-  $('canvasContainer').classList.remove('empty');
+  // Hide all converter panels, show only tracking UI
+  document.querySelectorAll('.converter-panel').forEach(el => el.style.display = 'none');
+  $('editToolbar').classList.remove('show');
+  $('yarnPanel').style.display = 'none';
   $('zoomControls').style.display = 'flex';
   $('toolbar').style.display = 'flex';
-  $('editToolbar').classList.add('show');
   $('progressPanel').style.display = 'block';
-  state.undoStack = [];
-  updateProgress();
-  renderYarnMatches();
+
+  renderImportedPattern();
+  updateImportedProgress();
   setTimeout(fitZoom, 50);
+}
+
+function renderImportedPattern() {
+  const img = state.importedImg;
+  if (!img) return;
+  const numRows = state.importedRows;
+  const container = $('canvasContainer');
+  container.classList.remove('empty');
+
+  const zoom = state.zoom || 1;
+  const displayW = Math.round(img.width * zoom);
+  const displayH = Math.round(img.height * zoom);
+  const rowH = displayH / numRows;
+
+  container.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'position:relative;display:inline-block;';
+
+  const canvas = document.createElement('canvas');
+  canvas.width = displayW;
+  canvas.height = displayH;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(img, 0, 0, displayW, displayH);
+
+  // Draw row lines and completed overlay
+  for (let r = 0; r < numRows; r++) {
+    const y = r * rowH;
+    const rowNum = numRows - r;
+    const isCompleted = state.completedRows.has(r);
+
+    if (isCompleted) {
+      ctx.fillStyle = 'rgba(40, 180, 80, 0.25)';
+      ctx.fillRect(0, y, displayW, rowH);
+    }
+
+    // Row line
+    ctx.strokeStyle = 'rgba(255, 210, 0, 0.3)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(displayW, y);
+    ctx.stroke();
+  }
+
+  wrap.appendChild(canvas);
+
+  // Row sidebar
+  const sidebar = document.createElement('div');
+  sidebar.style.cssText = 'position:absolute;top:0;right:-52px;width:50px;';
+
+  for (let r = 0; r < numRows; r++) {
+    const y = r * rowH;
+    const rowNum = numRows - r;
+    const isCompleted = state.completedRows.has(r);
+    const isOdd = rowNum % 2 === 1;
+
+    const label = document.createElement('div');
+    label.style.cssText = `position:absolute;top:${y}px;height:${rowH}px;width:50px;display:flex;align-items:center;gap:2px;font-size:${Math.min(11, rowH * 0.7)}px;color:#aaa;cursor:pointer;padding:0 2px;`;
+
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = isCompleted;
+    cb.style.cssText = `width:${Math.min(14, rowH * 0.6)}px;height:${Math.min(14, rowH * 0.6)}px;cursor:pointer;accent-color:#4a4;`;
+    cb.addEventListener('change', () => {
+      if (cb.checked) state.completedRows.add(r);
+      else state.completedRows.delete(r);
+      renderImportedPattern();
+      updateImportedProgress();
+      saveCurrentProject();
+    });
+
+    const num = document.createElement('span');
+    num.textContent = rowNum;
+    num.style.color = isCompleted ? '#4a4' : '#aaa';
+
+    const arrow = document.createElement('span');
+    arrow.textContent = isOdd ? '←' : '→';
+    arrow.style.cssText = 'font-size:0.6em;color:#666;';
+
+    label.appendChild(cb);
+    label.appendChild(num);
+    label.appendChild(arrow);
+
+    // Click row to zoom into it
+    label.addEventListener('click', (e) => {
+      if (e.target === cb) return;
+      showImportedRowStrip(r);
+    });
+
+    sidebar.appendChild(label);
+  }
+
+  wrap.appendChild(sidebar);
+  container.appendChild(wrap);
+
+  // Click on canvas to zoom into that row
+  canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const clickY = e.clientY - rect.top;
+    const row = Math.floor(clickY / rowH);
+    if (row >= 0 && row < numRows) showImportedRowStrip(row);
+  });
+
+  state.lastCanvas = canvas;
+}
+
+function showImportedRowStrip(rowIdx) {
+  const img = state.importedImg;
+  if (!img) return;
+  const numRows = state.importedRows;
+  const rowNum = numRows - rowIdx;
+  const isOdd = rowNum % 2 === 1;
+  const rowH = img.height / numRows;
+
+  $('stripTitle').textContent = `Row ${rowNum}`;
+  $('stripDir').textContent = isOdd
+    ? 'Stitches right ← left (start from right)'
+    : 'Stitches left → right (start from left)';
+
+  const stripH = 60;
+  const stripW = Math.round((img.width / rowH) * stripH);
+  const stripCanvas = $('stripCanvas');
+  stripCanvas.width = stripW;
+  stripCanvas.height = stripH;
+  const ctx = stripCanvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  const srcY = rowIdx * rowH;
+  ctx.drawImage(img, 0, srcY, img.width, rowH, 0, 0, stripW, stripH);
+
+  // Border
+  ctx.strokeStyle = '#ffd200';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(0, 0, stripW, stripH);
+
+  $('rowStrip').classList.add('show');
+}
+
+function updateImportedProgress() {
+  const total = state.importedRows || 0;
+  const done = state.completedRows.size;
+  const pct = total ? Math.round(done / total * 100) : 0;
+  const bar = $('progressFill');
+  if (bar) bar.style.width = pct + '%';
+  const text = $('progressText');
+  if (text) text.textContent = `${done} / ${total} rows (${pct}%)`;
 }
 
 // New Project button
@@ -3416,10 +3556,13 @@ $('newProjectBtn').addEventListener('click', () => {
   if (!name) return;
   createProject(name, false);
   state.isImportedPattern = false;
-  $('uploadPanel').style.display = 'block';
+  state.importedImg = null;
+  document.querySelectorAll('.converter-panel').forEach(el => el.style.display = '');
+  $('yarnPanel').style.display = '';
   state.patternData = null;
   state.palette = [];
   $('canvasContainer').classList.add('empty');
+  $('canvasContainer').innerHTML = '<p>Upload an image to get started</p>';
 });
 
 // Auto-save progress when rows are toggled
