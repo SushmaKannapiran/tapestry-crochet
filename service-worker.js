@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tapestry-v3';
+const CACHE_NAME = 'tapestry-v4';
 const BASE = self.registration.scope;
 const ASSETS = [
   'tapestry-converter.html',
