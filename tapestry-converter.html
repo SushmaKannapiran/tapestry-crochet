@@ -1666,18 +1666,32 @@ function getProcessedImageData() {
         cellClusters[ty * w + tx] = { c1, c2, n1, n2, dist };
 
         if (dist < 40) {
-          // Clusters are too similar — no real edge, average
+          // Clusters too similar — no real edge, just average
           const avg = averagePixels(pixels);
           od[oi] = avg[0]; od[oi+1] = avg[1]; od[oi+2] = avg[2];
-        } else if (n1 > n2 * 1.2) {
-          od[oi] = Math.round(c1[0]); od[oi+1] = Math.round(c1[1]); od[oi+2] = Math.round(c1[2]);
-        } else if (n2 > n1 * 1.2) {
-          od[oi] = Math.round(c2[0]); od[oi+1] = Math.round(c2[1]); od[oi+2] = Math.round(c2[2]);
         } else {
-          // Close to 50/50 — mark for context-aware refinement
-          const pick = n1 >= n2 ? c1 : c2;
-          od[oi] = Math.round(pick[0]); od[oi+1] = Math.round(pick[1]); od[oi+2] = Math.round(pick[2]);
-          tieBreakers.push({ tx, ty });
+          // Real edge — determine minority/majority
+          const minC = n1 <= n2 ? c1 : c2;
+          const majC = n1 > n2 ? c1 : c2;
+          const minN = Math.min(n1, n2);
+          const majN = Math.max(n1, n2);
+          const total = n1 + n2;
+          const minPct = minN / total;
+
+          if (dist > 100 && minPct >= 0.12 && minPct < 0.42) {
+            // Strong contrast + thin feature region (12-42% minority)
+            // Tentatively preserve minority — thin lines, details, outlines
+            // Context refinement in Phase 2 will remove false positives
+            od[oi] = Math.round(minC[0]); od[oi+1] = Math.round(minC[1]); od[oi+2] = Math.round(minC[2]);
+            tieBreakers.push({ tx, ty });
+          } else if (majN > minN * 1.2) {
+            // Clear majority
+            od[oi] = Math.round(majC[0]); od[oi+1] = Math.round(majC[1]); od[oi+2] = Math.round(majC[2]);
+          } else {
+            // Close to 50/50 — default to majority, refine by context
+            od[oi] = Math.round(majC[0]); od[oi+1] = Math.round(majC[1]); od[oi+2] = Math.round(majC[2]);
+            tieBreakers.push({ tx, ty });
+          }
         }
       } else {
         // Uniform block — average
@@ -1952,8 +1966,8 @@ function cleanupPattern(pattern, w, h) {
     }
   }
 
-  // Pass 4: Check all 8 neighbors — remove pixels with <=1 same-color
-  // neighbor in the full 8-neighborhood (diagonal noise)
+  // Pass 4: Check all 8 neighbors — remove pixels with 0 same-color
+  // in the full 8-neighborhood (diagonal noise)
   for (let y = 1; y < h - 1; y++) {
     for (let x = 1; x < w - 1; x++) {
       const ci = pattern[y * w + x];
@@ -1975,6 +1989,41 @@ function cleanupPattern(pattern, w, h) {
           if (allCounts[c] > maxN) { maxN = allCounts[c]; maxC = parseInt(c); }
         }
         pattern[y * w + x] = maxC;
+      }
+    }
+  }
+
+  // Pass 5: Strong neighbor consensus — if 6+ of 8 neighbors share a color
+  // and this pixel has <=1 same-color cardinal neighbor, replace it
+  // (catches small 2-pixel noise clusters without breaking thin lines)
+  for (let pass = 0; pass < 2; pass++) {
+    for (let y = 1; y < h - 1; y++) {
+      for (let x = 1; x < w - 1; x++) {
+        const ci = pattern[y * w + x];
+        let sameCardinal = 0;
+        const allCounts = {};
+
+        for (const [dx, dy] of [[0,-1],[0,1],[-1,0],[1,0]]) {
+          if (pattern[(y+dy) * w + (x+dx)] === ci) sameCardinal++;
+        }
+
+        // If this pixel is part of a line (2+ cardinal neighbors same), skip
+        if (sameCardinal >= 2) continue;
+
+        for (let dy = -1; dy <= 1; dy++) {
+          for (let dx = -1; dx <= 1; dx++) {
+            if (dx === 0 && dy === 0) continue;
+            const ni = pattern[(y+dy) * w + (x+dx)];
+            if (ni !== ci) allCounts[ni] = (allCounts[ni] || 0) + 1;
+          }
+        }
+
+        for (const c in allCounts) {
+          if (allCounts[c] >= 6) {
+            pattern[y * w + x] = parseInt(c);
+            break;
+          }
+        }
       }
     }
   }
