@@ -1000,11 +1000,11 @@
         <button class="style-btn" data-style="bold" data-colors="8">&#9889; Bold<span>Pop-art, fewest colors — fastest to crochet</span></button>
       </div>
       <div class="control-row" style="margin-top:14px;">
-        <label>Detail</label>
+        <label>Detail <span id="autoTag" style="font-size:0.65rem;color:#a855f7;font-weight:600;"></span></label>
         <span class="value" id="detailVal">60</span>
       </div>
       <input type="range" id="detailLevel" min="0" max="100" value="60">
-      <p style="font-size:0.7rem;color:#666;margin-top:2px;">Higher = keeps fine features (rings, hands, faces, texture) sharp at low row counts. Lower = smoother &amp; simpler.</p>
+      <p style="font-size:0.7rem;color:#666;margin-top:2px;">Auto-set per image (photo → sharp, illustration → smooth). Higher = keeps fine features sharp; lower = cleaner flat regions. Drag to override.</p>
     </div>
 
     <div class="panel converter-panel">
@@ -1657,6 +1657,45 @@ function subjectWeightedPixels(imageData) {
     }
   }
   return pixels;
+}
+
+// How concentrated the colors are: fraction of the image covered by its 8 most
+// common colors (quantized). Flat illustrations concentrate color into big flat
+// regions (~0.65); photos spread it out (~0.30). Used to auto-pick Detail.
+function imageColorConcentration(img) {
+  const w = 120, h = Math.max(1, Math.round(120 * img.height / img.width));
+  const cv = document.createElement('canvas');
+  cv.width = w; cv.height = h;
+  const cx = cv.getContext('2d');
+  cx.imageSmoothingEnabled = true; cx.imageSmoothingQuality = 'high';
+  cx.drawImage(img, 0, 0, w, h);
+  const d = cx.getImageData(0, 0, w, h).data;
+  const hist = {};
+  for (let i = 0; i < d.length; i += 4) {
+    const k = ((d[i] >> 4) << 8) | ((d[i+1] >> 4) << 4) | (d[i+2] >> 4);
+    hist[k] = (hist[k] || 0) + 1;
+  }
+  const vals = Object.keys(hist).map(k => hist[k]).sort((a, b) => b - a);
+  let top8 = 0;
+  for (let j = 0; j < 8 && j < vals.length; j++) top8 += vals[j];
+  return top8 / (d.length / 4);
+}
+
+// On a new image, auto-set the Detail slider: flat illustration → low Detail
+// (smooth, keeps faithful colors, no grain speckle); photo → high Detail
+// (keeps fine features). Runs once per image; the user can still override.
+function autoTuneDetail() {
+  if (!state.originalImage || state.tunedImage === state.originalImage) return;
+  state.tunedImage = state.originalImage;
+  const cov = imageColorConcentration(state.originalImage);
+  // cov 0.35 (busy photo) → Detail 60 ; cov 0.55 (flat illustration) → Detail 15
+  const t = Math.max(0, Math.min(1, (cov - 0.35) / 0.20));
+  const suggested = Math.round(60 - t * 45);
+  $('detailLevel').value = suggested;
+  $('detailVal').textContent = suggested;
+  state.detectedType = cov > 0.47 ? 'illustration' : 'photo';
+  const tag = $('autoTag');
+  if (tag) tag.textContent = state.detectedType === 'illustration' ? '· auto: illustration' : '· auto: photo';
 }
 
 function getProcessedImageData(targetW, targetH) {
@@ -2560,6 +2599,7 @@ function generate() {
   state.gridH = targetH;
 
   const maxDim = Math.max(targetW, targetH);
+  autoTuneDetail();
   const detail = parseInt($('detailLevel').value);
 
   // Cartoon/Bold want flat, smoothed regions → quantize-first (smoothing) path.
