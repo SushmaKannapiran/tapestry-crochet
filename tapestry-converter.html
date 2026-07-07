@@ -999,6 +999,12 @@
         <button class="style-btn" data-style="cartoon" data-colors="10">&#127912; Cartoon<span>Flat poster look — clearest at low rows</span></button>
         <button class="style-btn" data-style="bold" data-colors="8">&#9889; Bold<span>Pop-art, fewest colors — fastest to crochet</span></button>
       </div>
+      <div class="control-row" style="margin-top:14px;">
+        <label>Detail</label>
+        <span class="value" id="detailVal">60</span>
+      </div>
+      <input type="range" id="detailLevel" min="0" max="100" value="60">
+      <p style="font-size:0.7rem;color:#666;margin-top:2px;">Higher = keeps fine features (rings, hands, faces, texture) sharp at low row counts. Lower = smoother &amp; simpler.</p>
     </div>
 
     <div class="panel converter-panel">
@@ -1444,6 +1450,9 @@ bindSlider('brightness', 'brightVal');
 bindSlider('contrast', 'contrastVal');
 bindSlider('saturation', 'satVal');
 bindSlider('sharpness', 'sharpVal');
+bindSlider('detailLevel', 'detailVal', () => {
+  if (state.originalImage && state.patternData) generate();
+});
 bindSlider('bgThreshold', 'bgThresholdVal', () => {
   if (state.originalImage && state.bgImage) generate();
 });
@@ -1723,10 +1732,17 @@ function getProcessedImageData(targetW, targetH) {
     }
   }
 
+  // Sharpening = user slider + the Detail control. The Detail control is what
+  // keeps fine features (rings, fingers, fabric texture, eyes) from being
+  // smoothed away at low stitch counts. Smooth styles (cartoon/bold) skip it.
   const sharpness = parseInt($('sharpness').value);
-  if (sharpness > 0) {
+  const detailEl = $('detailLevel');
+  const detailAmt = detailEl ? parseInt(detailEl.value) : 0;
+  const smoothStyle = (state.style === 'cartoon' || state.style === 'bold');
+  const totalSharp = sharpness + (smoothStyle ? 0 : detailAmt);
+  if (totalSharp > 0) {
     const blurred = blurImageData(hiData, hw, hh);
-    const amount = sharpness / 50;
+    const amount = totalSharp / 55;
     for (let i = 0; i < hd.length; i += 4) {
       hd[i] = Math.max(0, Math.min(255, Math.round(hd[i] + amount * (hd[i] - blurred[i]))));
       hd[i+1] = Math.max(0, Math.min(255, Math.round(hd[i+1] + amount * (hd[i+1] - blurred[i+1]))));
@@ -2110,6 +2126,34 @@ function quantizeImage(imageData, palette, useDithering) {
 }
 
 // ===================== PATTERN CLEANUP =====================
+// Gentle cleanup for detail mode: removes ONLY fully-isolated single stitches
+// (0 same-color cardinal neighbors) so lone stray stitches vanish, but any
+// feature that's 2+ stitches (a ring, a finger, an eye, fabric detail) is kept.
+function lightCleanupPattern(pattern, w, h) {
+  for (let pass = 0; pass < 2; pass++) {
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const ci = pattern[y * w + x];
+        let same = 0, total = 0;
+        const counts = {};
+        for (const [dx, dy] of [[0,-1],[0,1],[-1,0],[1,0]]) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || nx >= w || ny < 0 || ny >= h) continue;
+          total++;
+          const n = pattern[ny * w + nx];
+          if (n === ci) same++;
+          else counts[n] = (counts[n] || 0) + 1;
+        }
+        if (same === 0 && total >= 3) {
+          let mx = 0, mc = ci;
+          for (const c in counts) { if (counts[c] > mx) { mx = counts[c]; mc = parseInt(c); } }
+          pattern[y * w + x] = mc;
+        }
+      }
+    }
+  }
+}
+
 function cleanupPattern(pattern, w, h) {
   // Pass 1-2: Remove fully isolated pixels (no same-color cardinal neighbor)
   for (let pass = 0; pass < 2; pass++) {
@@ -2516,11 +2560,13 @@ function generate() {
   state.gridH = targetH;
 
   const maxDim = Math.max(targetW, targetH);
+  const detail = parseInt($('detailLevel').value);
 
-  // QUANTIZE-FIRST pipeline: quantize at high resolution, then downsample the pattern
-  // At 480px, features are large and clear → clean palette mapping
-  // Then majority-vote down to 60px → preserves dominant colors perfectly
-  const useQuantizeFirst = maxDim <= 150;
+  // Cartoon/Bold want flat, smoothed regions → quantize-first (smoothing) path.
+  // Photo wants sharp, detail-preserving output → edge-priority downscale path,
+  // which keeps fine features (rings, fingers, texture) alive at low row counts.
+  const smoothStyle = (state.style === 'cartoon' || state.style === 'bold');
+  const useQuantizeFirst = smoothStyle && maxDim <= 150;
 
   let imageData;
   if (useQuantizeFirst) {
@@ -2561,7 +2607,10 @@ function generate() {
   } else {
     const useDithering = $('dithering').checked;
     state.patternData = quantizeImage(imageData, state.palette, useDithering);
-    cleanupPattern(state.patternData, state.gridW, state.gridH);
+    // High detail → light cleanup (removes lone stray stitches but KEEPS small
+    // features like rings, fingers, eyes). Low detail → full noise removal.
+    if (detail >= 45) lightCleanupPattern(state.patternData, state.gridW, state.gridH);
+    else cleanupPattern(state.patternData, state.gridW, state.gridH);
   }
 
   state.completedRows = new Set();
