@@ -1118,6 +1118,7 @@
     </div>
 
     <button class="btn btn-primary converter-panel" id="generateBtn" disabled>Generate Pattern</button>
+    <div id="complexityTip" class="converter-panel" style="display:none;font-size:0.75rem;line-height:1.35;color:#ffce54;background:#2a2416;border:1px solid #4a3f1a;border-radius:8px;padding:9px 11px;margin-top:8px;"></div>
     <button class="btn btn-secondary converter-panel" id="resetAdjustments">Reset Adjustments</button>
 
     <div class="panel" id="progressPanel" style="display:none;">
@@ -1698,6 +1699,26 @@ function autoTuneDetail() {
   if (tag) tag.textContent = state.detectedType === 'illustration' ? '· auto: illustration' : '· auto: photo';
 }
 
+// Honest guidance: low stitch counts can't hold fine detail no matter how good
+// the processing is. Nudge the user toward more stitches / colors / a tighter crop.
+function updateComplexityTip() {
+  const tip = $('complexityTip');
+  if (!tip) return;
+  const minDim = Math.min(state.gridW, state.gridH);
+  if (minDim < 90) {
+    let msg = 'Low stitch count (' + state.gridW + '×' + state.gridH + '). Faces & fine detail read much clearer around 100–130 stitches.';
+    if (state.detectedType === 'illustration') {
+      msg += ' If it looks flat, try more colors.';
+    } else {
+      msg += ' Or crop closer to the subject so it gets more stitches.';
+    }
+    tip.textContent = '💡 ' + msg;
+    tip.style.display = 'block';
+  } else {
+    tip.style.display = 'none';
+  }
+}
+
 function getProcessedImageData(targetW, targetH) {
   const img = state.originalImage;
   const w = targetW || parseInt($('gridWidth').value);
@@ -2125,6 +2146,34 @@ function getBucketRange(bucket) {
   const maxRange = Math.max(rRange, gRange, bRange);
   const channel = maxRange === rRange ? 0 : maxRange === gRange ? 1 : 2;
   return { maxRange, channel };
+}
+
+// Refine a palette with k-means: move each color to the true mean of the pixels
+// that map to it. Colors snap to real clusters → cleaner, more faithful output
+// with less muddy blending. Big general-quality win across all image types.
+function refinePaletteKMeans(pixels, palette, iters) {
+  if (palette.length < 2) return palette;
+  let cents = palette.map(c => c.slice());
+  for (let it = 0; it < iters; it++) {
+    const sums = cents.map(() => [0, 0, 0, 0]);
+    for (let p = 0; p < pixels.length; p++) {
+      const px = pixels[p];
+      let best = 0, bd = Infinity;
+      for (let i = 0; i < cents.length; i++) {
+        const dr = px[0] - cents[i][0], dg = px[1] - cents[i][1], db = px[2] - cents[i][2];
+        const dd = 2*dr*dr + 4*dg*dg + 3*db*db;
+        if (dd < bd) { bd = dd; best = i; }
+      }
+      const s = sums[best];
+      s[0] += px[0]; s[1] += px[1]; s[2] += px[2]; s[3]++;
+    }
+    for (let i = 0; i < cents.length; i++) {
+      if (sums[i][3] > 0) {
+        cents[i] = [Math.round(sums[i][0]/sums[i][3]), Math.round(sums[i][1]/sums[i][3]), Math.round(sums[i][2]/sums[i][3])];
+      }
+    }
+  }
+  return cents;
 }
 
 function findClosestColor(r, g, b, palette) {
@@ -2600,6 +2649,7 @@ function generate() {
 
   const maxDim = Math.max(targetW, targetH);
   autoTuneDetail();
+  updateComplexityTip();
   const detail = parseInt($('detailLevel').value);
 
   // Cartoon/Bold want flat, smoothed regions → quantize-first (smoothing) path.
@@ -2631,7 +2681,10 @@ function generate() {
     } else {
       // Subject-weighted: faces get dedicated colors instead of losing the
       // budget to a big background.
-      state.palette = medianCut(subjectWeightedPixels(imageData), numColors);
+      const wpixels = subjectWeightedPixels(imageData);
+      state.palette = medianCut(wpixels, numColors);
+      // Refine to true color clusters → cleaner, more faithful, less muddy.
+      state.palette = refinePaletteKMeans(wpixels, state.palette, 4);
     }
     if (numColors >= 4) {
       state.palette = injectAccentColors(imageData, pixels, state.palette);
